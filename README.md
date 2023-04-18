@@ -12,3 +12,7 @@ Currently, the addon remains closed-source and available for use for only a sele
 This repository serves as Documentation, Wiki, and Issue Tracker.
 
 And in the future, will also host the source code when it's ready to be made public.
+
+<hr>
+
+You're probably here for the Wiki -> https://github.com/Norway174/HaloArmory/wiki
