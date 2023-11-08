@@ -5,8 +5,8 @@ It offers a full suite of unique and fun additions to complement the HaloRP Game
 
 Currently, the addon remains closed-source and available for use for only a select few servers;
 
-* Ronin Networks: https://discord.gg/Nf6JF5sFS3 (Currently active.)
-* Forward Unto Dawn: https://discord.gg/BZk6nFjRjt (Inactive, & no longer running.)
+* Forward Unto Dawn: https://discord.gg/BZk6nFjRjt (Currently active.)
+* Ronin Networks: https://discord.gg/Nf6JF5sFS3 (Inactive, & no longer running.)
 
 
 This repository serves as Documentation, Wiki, and Issue Tracker.
