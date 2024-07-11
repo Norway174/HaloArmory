@@ -1,0 +1,305 @@
+HALOARMORY.MsgC("Client HALO SUPPLY Access GUI Loading.")
+
+
+HALOARMORY.Logistics = HALOARMORY.Logistics or {}
+HALOARMORY.Logistics.Access = HALOARMORY.Logistics.Access or {}
+
+local ScrWi, ScrHe = math.min(ScrW() - 10, 820), math.min(ScrH() - 10, 567)
+--ScrWi, ScrHe = 800, 600
+
+hook.Add( "OnScreenSizeChanged", "HALOARMORY.Logistics.Access.OnSizeChange", function( oldWidth, oldHeight )
+    ScrWi, ScrHe = math.min(ScrW() - 10, 550), math.min(ScrH() - 10, 600)
+end )
+
+local devicePanels = {}
+
+local models = {
+    ["models/valk/halo2a/unsc/props/military/crate_packing.mdl"] = true,
+    ["models/ishi/halo_rebirth/props/human/packing_crate_small.mdl"] = true,
+    ["models/ishi/halo_rebirth/props/human/oni_crate_small.mdl"] = true,
+    ["models/valk/haloreach/unsc/props/crate/crate_packing.mdl"] = true,
+    ["models/rena_haloreach/crate_packing.mdl"] = true,
+    ["models/valk/h3/unsc/props/crates/techcrate_single.mdl"] = true,
+    ["models/valk/h3/unsc/props/crates/crate_packing.mdl"] = true,
+    ["models/valk/halo3/unsc/props/industrial/box_wooden_small_b.mdl"] = true,
+    ["models/valk/halo3/unsc/props/military/crate_packing.mdl"] = true,
+    ["models/valk/h4/unsc/props/crate/crate.mdl"] = true,
+}
+
+local function UpdateScannedList( ent )
+    HALOARMORY.Logistics.Access.CargoList:Clear()
+
+    for k, v in pairs( ent:ScanPad() ) do
+        --print( "Scanning", k, v)
+        local panel = HALOARMORY.Logistics.Access.CargoList:AddLine( v.DeviceName, v:GetStored(), v:GetMaxCapacity() )
+        panel.TheEntity = v
+    end
+
+    timer.Simple( 0.1, function()
+        HALOARMORY.Logistics.Access.CargoList:SelectFirstItem()
+    end )
+end
+
+
+function HALOARMORY.Logistics.Access.LoadAccessGUI( ent, network )
+
+
+    // Create a new VGUI element
+    HALOARMORY.Logistics.Access.Menu = vgui.Create( "DFrame" )
+    HALOARMORY.Logistics.Access.Menu:SetSize( ScrWi, ScrHe ) 
+    HALOARMORY.Logistics.Access.Menu:Center()
+    HALOARMORY.Logistics.Access.Menu:SetTitle( "Accessing" ) 
+    HALOARMORY.Logistics.Access.Menu:SetVisible( true ) 
+    HALOARMORY.Logistics.Access.Menu:SetDraggable( true ) 
+    HALOARMORY.Logistics.Access.Menu:ShowCloseButton( true ) 
+    HALOARMORY.Logistics.Access.Menu:MakePopup()
+
+    --print( "Opening Network: ", network )
+    --PrintTable( network )
+
+    HALOARMORY.Logistics.Access.DevicesList = vgui.Create( "DColumnSheet", HALOARMORY.Logistics.Access.Menu )
+    --HALOARMORY.Logistics.Access.DevicesList:Dock( FILL )
+    HALOARMORY.Logistics.Access.DevicesList:SetPos( 0, 30 )
+    HALOARMORY.Logistics.Access.DevicesList:SetSize( ScrWi, ScrHe - 30 )
+
+    local ControllerPanel = vgui.Create( "DPanel", HALOARMORY.Logistics.Access.DevicesList )
+    --ControllerPanel:Dock( FILL )
+    ControllerPanel:SetSize( ScrWi, ScrHe )
+    ControllerPanel.Paint = function( self, w, h )
+        
+        surface.SetMaterial( ent.Theme["background"] )
+        surface.SetDrawColor( ent.Theme["colors"]["background_color"] )
+        surface.DrawTexturedRect( 0, 0, ent.frameW, ent.frameH )
+
+        HALOARMORY.INTERFACE.CONTROL_PANEL.SUPPLY.DrawControl( ent, true )
+    
+    end 
+    HALOARMORY.Logistics.Access.DevicesList:AddSheet( "Home", ControllerPanel, "icon16/house.png" )
+
+    -- local panel2 = vgui.Create( "DPanel", sheet )
+    -- panel2:Dock( FILL )
+    -- panel2.Paint = function( self, w, h ) draw.RoundedBox( 4, 0, 0, w, h, Color( 255, 128, 0 ) ) end 
+    -- sheet:AddSheet( "test 2", panel2, "icon16/box.png" )
+
+    net.Start( "HALOARMORY.Logistics.ACCESS.GetDevices" )
+        net.WriteString( network.Name )
+    net.SendToServer()
+
+end
+
+
+net.Receive( "HALOARMORY.Logistics.ACCESS.GetDevices", function( len, ply )
+
+    local devices = net.ReadTable()
+
+    --PrintTable( devices )
+    --HALOARMORY.Logistics.Access.DevicesList:Clear()
+
+    --timer.Simple( 0.1, function()
+
+    for index, ent in pairs(devices) do
+
+        print( "Adding device: ", index, ent, ent.DeviceType )
+
+        if ent.DeviceType == "controller" then
+
+            -- local ControllerPanel = vgui.Create( "DPanel", HALOARMORY.Logistics.Access.DevicesList )
+            -- ControllerPanel:Dock( FILL )
+            -- ControllerPanel.Paint = function( self, w, h )
+                
+            --     surface.SetMaterial( ent.Theme["background"] )
+            --     surface.SetDrawColor( ent.Theme["colors"]["background_color"] )
+            --     surface.DrawTexturedRect( 0, 0, ent.frameW, ent.frameH )
+        
+            --     HALOARMORY.INTERFACE.CONTROL_PANEL.SUPPLY.DrawControl( ent, true )
+            
+            -- end 
+            -- HALOARMORY.Logistics.Access.DevicesList:AddSheet( "Controller", ControllerPanel, "icon16/house.png" )
+
+        elseif ent.DeviceType == "cargo_access" then
+            
+            devicePanels[index] = vgui.Create( "DPanel", HALOARMORY.Logistics.Access.DevicesList )
+            devicePanels[index]:Dock( FILL )
+            --devicePanels[index].Paint = function( self, w, h ) draw.RoundedBox( 4, 0, 0, w, h, Color( 44, 44, 44) ) end
+
+            -- local Scroll = vgui.Create( "DScrollPanel", devicePanels[index] ) -- Create the Scroll panel
+            -- Scroll:Dock( FILL )
+
+            -- local List = vgui.Create( "DIconLayout", Scroll )
+            -- List:Dock( FILL )
+            -- List:SetSpaceY( 5 ) -- Sets the space in between the panels on the Y Axis by 5
+            -- List:SetSpaceX( 5 ) -- Sets the space in between the panels on the X Axis by 5
+
+
+            -- for model, _ in pairs(models) do -- Make a loop to create a bunch of panels inside of the DIconLayout
+            --     print( "Adding model: ", model)
+            --     --local SpawnI = vgui.Create( "SpawnIcon" , List ) -- SpawnIcon
+            --     local ListItem = List:Add( "SpawnIcon" )
+            --     --ListItem:SetSize( 80, 40 )
+            --     ListItem:SetModel( model ) -- Model we want for this spawn icon
+            -- end
+
+            local sheet = vgui.Create( "DPropertySheet", devicePanels[index] )
+            sheet:Dock( FILL )
+
+            local panel1 = vgui.Create( "DPanel", sheet )
+            panel1.Paint = function( self, w, h ) draw.RoundedBox( 4, 0, 0, w, h, Color( 44, 44, 44) ) end 
+
+            local HeaderStep1 = vgui.Create( "DLabel", panel1 )
+            --HeaderStep1:Dock( TOP )
+            HeaderStep1:SetFont( "DermaLarge" )
+            HeaderStep1:SetWide( 500 )
+            HeaderStep1:SetText( "Removing Supplies from the Network" )
+
+
+            local DermaNumSlider = vgui.Create( "DNumSlider", panel1 )
+            --DermaNumSlider:SetPos( 50, 50 )
+            DermaNumSlider:SetSize( 300, 100 )
+            DermaNumSlider:SetText( "Amount of Supplies" )
+            DermaNumSlider:SetMin( 1 )
+            DermaNumSlider:SetMax( 5000 )
+            DermaNumSlider:SetDecimals( 0 )
+            DermaNumSlider:SetValue( 1 )
+
+            DermaNumSlider.Think = function ()
+
+                local network = ent:GetNetworkTable()
+                network = util.JSONToTable( network )
+                
+                DermaNumSlider:SetMax( math.min(network.Supplies, 5000) )
+                
+            end
+
+            local DermaButton = vgui.Create( "DButton", panel1 )
+            DermaButton:SetText( "Spawn" )
+            DermaButton:SetPos( 50, 100 )
+            DermaButton:SetSize( 100, 50 )
+            DermaButton.DoClick = function()
+                
+                local amount = DermaNumSlider:GetValue()
+                --print( "Amount: ", amount )
+
+                net.Start( "HALOARMORY.Logistics.ACCESS.TakeSupplies" )
+                    net.WriteEntity( ent )
+                    net.WriteInt( amount, 32 )
+                net.SendToServer()
+
+
+            end
+
+
+            sheet:AddSheet( "Take out", panel1, "icon16/cart_remove.png" )
+
+            local panel2 = vgui.Create( "DPanel", sheet )
+            panel2.Paint = function( self, w, h ) draw.RoundedBox( 4, 0, 0, w, h, Color( 44, 44, 44) ) end 
+            sheet:AddSheet( "Insert", panel2, "icon16/cart_put.png" )
+
+
+            local scanButton = vgui.Create( "DButton", panel2 )
+            scanButton:SetText( "Refresh Scan" )
+            scanButton:SetPos( 10, 10 )
+            scanButton:SetSize( 100, 50 )
+
+            HALOARMORY.Logistics.Access.CargoList = vgui.Create( "DListView", panel2 )
+            HALOARMORY.Logistics.Access.CargoList:SetPos( 10, 70 )
+            HALOARMORY.Logistics.Access.CargoList:SetSize( 300, 300 )
+            HALOARMORY.Logistics.Access.CargoList:SetMultiSelect( false )
+            HALOARMORY.Logistics.Access.CargoList:AddColumn( "Name" )
+            HALOARMORY.Logistics.Access.CargoList:AddColumn( "Current Supplies" )
+            HALOARMORY.Logistics.Access.CargoList:AddColumn( "Max Capacity" )
+
+
+            UpdateScannedList( ent )
+
+
+            scanButton.DoClick = function()
+
+                UpdateScannedList( ent )
+
+            end
+
+
+            local insertAmount = vgui.Create( "DNumSlider", panel2 )
+            insertAmount:SetPos( 10, 335 )
+            insertAmount:SetSize( 300, 100 )
+            insertAmount:SetText( "Amount of Supplies" )
+            insertAmount:SetMin( 1 )
+            insertAmount:SetMax( 5000 )
+            insertAmount:SetDecimals( 0 )
+            insertAmount:SetValue( 1 )
+
+            insertAmount.Think = function ()
+                local selected = HALOARMORY.Logistics.Access.CargoList:GetSelectedLine()
+
+                if selected then
+                    insertAmount:SetMax( HALOARMORY.Logistics.Access.CargoList:GetLine( selected ):GetValue( 2 ) )
+                end
+            end
+
+            local insertButton = vgui.Create( "DButton", panel2 )
+            insertButton:SetText( "Insert" )
+            insertButton:SetPos( 10, 400 )
+            insertButton:SetSize( 100, 50 )
+            insertButton.DoClick = function()
+                
+                local amount = insertAmount:GetValue()
+                local selected = HALOARMORY.Logistics.Access.CargoList:GetSelectedLine()
+
+                if !selected then
+                    // Select the fist one
+                    HALOARMORY.Logistics.Access.CargoList:SelectFirstItem()
+                    selected = HALOARMORY.Logistics.Access.CargoList:GetSelectedLine()
+                end
+
+                if not HALOARMORY.Logistics.Access.CargoList:GetLine( selected ) then return end
+
+                local name = HALOARMORY.Logistics.Access.CargoList:GetLine( selected ):GetValue( 1 )
+                local cargo_ent = HALOARMORY.Logistics.Access.CargoList:GetLine( selected ).TheEntity
+                print( "Amount: ", amount )
+                print( "Name: ", name )
+                print( "Cargo Entity: ", cargo_ent )
+
+                net.Start( "HALOARMORY.Logistics.ACCESS.InsertSupplies" )
+                    net.WriteEntity( ent )
+                    net.WriteEntity( cargo_ent )
+                    net.WriteInt( amount, 32 )
+                net.SendToServer()
+
+                timer.Simple( 0.5, function()
+                    UpdateScannedList( ent )
+                end )
+            end
+
+            HALOARMORY.Logistics.Access.DevicesList:AddSheet( ent:GetDeviceName(), devicePanels[index], "icon16/box.png" )
+        end
+    end
+    --end)
+
+    
+
+end )
+
+net.Receive( "HALOARMORY.Logistics.ACCESS.ScanSupplies", function( len, ply )
+
+    local ent = net.ReadEntity()
+    local network = net.ReadTable()
+
+    HALOARMORY.Logistics.Access.LoadAccessGUI( ent, network )
+
+end )
+
+
+
+
+--[[ 
+################################
+||                            ||
+||       Debug open GUI       ||
+||                            ||
+################################
+ ]]
+
+-- if HALOARMORY.Logistics.Access.Menu then HALOARMORY.Logistics.Access.Menu:Remove() end
+-- local network = Entity(85):GetNetworkTable()
+-- network = util.JSONToTable( network )
+-- HALOARMORY.Logistics.Access.LoadAccessGUI( Entity(85), network )
