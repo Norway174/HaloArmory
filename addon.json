@@ -5,5 +5,12 @@
 	[
 		"roleplay",
 		"realism"
+	],
+	"ignore"	:
+	[
+		"*.psd",
+		"*.vcproj",
+		"*.svn*",
+		"readme.md"
 	]
 }
