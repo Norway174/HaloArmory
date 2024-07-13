@@ -8,7 +8,7 @@ With many features, such as;
 * Vehicle Requisitions
 * Persistent Ships
 * Vehicle Cargo System
-* ~~Character Persistence~~ (*Deprecated* - Check out: https://github.com)
+* ~~Character Persistence~~ (*Deprecated* - Check out: [CharacterPersistence](https://github.com/Norway174/CharacterPersistence))
 * * ~~Character Creator~~
 * ATC Radar (More to come soon!)
 * ... And more!
