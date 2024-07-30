@@ -23,14 +23,14 @@ function ENT:Initialize()
 
     self:SetRenderMode( RENDERMODE_TRANSALPHA )
 
-	-- Physics stuff
-	self:SetMoveType( MOVETYPE_VPHYSICS )
-	self:SetSolid( SOLID_VPHYSICS )
+    -- Physics stuff
+    self:SetMoveType( MOVETYPE_VPHYSICS )
+    self:SetSolid( SOLID_VPHYSICS )
 
-	-- Init physics only on server, so it doesn't mess up physgun beam
-	if ( SERVER ) then self:PhysicsInit( SOLID_VPHYSICS ) end
-	
-	local phys = self:GetPhysicsObject()
+    -- Init physics only on server, so it doesn't mess up physgun beam
+    if ( SERVER ) then self:PhysicsInit( SOLID_VPHYSICS ) end
+    
+    local phys = self:GetPhysicsObject()
     if ( IsValid( phys ) ) then
         phys:Wake()
         --phys:Sleep()
@@ -68,11 +68,11 @@ function ENT:Initialize()
     self:DeleteOnRemove( Pod )
 
     local DSPhys = Pod:GetPhysicsObject()
-	if IsValid( DSPhys ) then
-		DSPhys:EnableDrag( false )
-		DSPhys:EnableMotion( false )
-		DSPhys:SetMass( 1 )
-	end
+    if IsValid( DSPhys ) then
+        DSPhys:EnableDrag( false )
+        DSPhys:EnableMotion( false )
+        DSPhys:SetMass( 1 )
+    end
 
     Pod.IsCryoPod = self.IsCryoPod
 
@@ -98,18 +98,18 @@ end
 function ENT:SpawnFunction( ply, tr, ClassName )
 
     if ( !tr.Hit ) then return end
-	
-	local SpawnPos = tr.HitPos + tr.HitNormal
-	local SpawnAng = ply:EyeAngles()
-	SpawnAng.p = -90
-	SpawnAng.y = SpawnAng.y + 90
+    
+    local SpawnPos = tr.HitPos + tr.HitNormal
+    local SpawnAng = ply:EyeAngles()
+    SpawnAng.p = -90
+    SpawnAng.y = SpawnAng.y + 90
     SpawnAng.x = SpawnAng.x + 90
     --SpawnAng.z = SpawnAng.z + 90
 
     local ent = ents.Create( ClassName )
 
     ent:SetPos( SpawnPos )
-	ent:SetAngles( SpawnAng )
+    ent:SetAngles( SpawnAng )
     ent:Spawn()
     ent:Activate()
 
