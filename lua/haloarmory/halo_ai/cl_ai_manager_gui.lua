@@ -50,7 +50,7 @@ local the_AI_placeholder = {
     ["name"] = "Aurora",
     ["color"] = Color( 255, 0, 0 ),
     ["model"] = "gpt-3.5-turbo",
-    ["token_limit"] = 256,
+    ["token_limit"] = 4096,
     ["global_prompt"] = [[You are an UNSC AI called {ai-name} in the Halo Universe.
 Your task is to assist the UNSC personnel in whatever their task or mission may be.
 {map-details}
@@ -408,12 +408,14 @@ function HALOARMORY.AI.Manager_GUI.OpenAIGUI( the_AI )
     TotalTokensLabel:SetPos( 40, 10 )
     TotalTokensLabel:SetSize( 350, 20 )
     TotalTokensLabel:SetColor( Color( 0, 0, 0 ) )
-    TotalTokensLabel:SetText( "Total Tokens: <tbd>" )
+    TotalTokensLabel:SetText( "Total Tokens: <loading>" )
+
+    TotalTokensLabel.TokenLabels = {}
 
     TotalTokensLabel.UpdateTokens = function()
         local totalTokens = 0
-        for k, v in pairs( HistoryView.HistoryTable ) do
-            totalTokens = totalTokens + HALOARMORY.AI.Tokens.Encode( v.content or "nil" )
+        for k, v in pairs( TotalTokensLabel.TokenLabels ) do
+            totalTokens = totalTokens + v.Tokens
         end
         TotalTokensLabel:SetText( "Total Tokens: " .. totalTokens .. " / " .. TokenLimiter_Input:GetValue() )
     end
@@ -423,6 +425,8 @@ function HALOARMORY.AI.Manager_GUI.OpenAIGUI( the_AI )
 
     HistoryView.Init = function( self )
         self:Clear()
+
+        TotalTokensLabel.TokenLabels = {}
 
         for k, v in pairs( HistoryView.HistoryTable ) do
             local HistoryPanel = HistoryView:Add( "DPanel" )
@@ -462,6 +466,8 @@ function HALOARMORY.AI.Manager_GUI.OpenAIGUI( the_AI )
             HistoryContent:SetMultiline( true )
             HistoryContent:SetText( v.content or "nil")
 
+            HistoryContent:SetUpdateOnType( false )
+
             // Dynamically set the height of the textEntry box. A new line is 38 character, or "\n".
             // Minimum height is 35, maximum height is 200.
             local contentHeight = 35
@@ -483,17 +489,33 @@ function HALOARMORY.AI.Manager_GUI.OpenAIGUI( the_AI )
             local HistoryTokensLabel = vgui.Create( "DLabel", HistoryPanel )
             HistoryTokensLabel:SetPos( HistoryPanel:GetWide() - 100, 9 )
             HistoryTokensLabel:SetColor( Color( 0, 0, 0 ) )
-            HistoryTokensLabel:SetText( "Tokens: " .. HALOARMORY.AI.Tokens.Encode( v.content or "nil" ) )
+            HistoryTokensLabel:SetText( "Tokens: <loading>" )
+
+            HistoryTokensLabel.Tokens = 0
+
+            table.insert( TotalTokensLabel.TokenLabels, HistoryTokensLabel )
 
             HistoryTokensLabel.UpdateTokens = function()
-                HistoryTokensLabel:SetText( "Tokens: " .. HALOARMORY.AI.Tokens.Encode( v.content or "nil" ) )
+                HALOARMORY.AI.Tokens.Encode(HistoryContent:GetText(), function(tokens, success)
+                    print("Got Tokens", tokens, success)
+                    HistoryTokensLabel.Tokens = tokens
+                    if success then
+                        HistoryTokensLabel:SetText( "Tokens: " .. tokens )
+                    else
+                        HistoryTokensLabel:SetText( "Tokens: <error>" )
+                    end
+
+                    TotalTokensLabel.UpdateTokens()
+                    
+                end)
             end
 
-            HistoryContent.OnTextChanged = function( self4 )
+            HistoryTokensLabel.UpdateTokens()
+
+            HistoryContent.OnLoseFocus = function( self4 )
                 HistoryView.HistoryTable[k].content = self4:GetValue()
 
                 HistoryTokensLabel.UpdateTokens()
-                TotalTokensLabel.UpdateTokens()
 
                 // Dynamically set the height of the textEntry box.
                 // Minimum height is 35, maximum height is 200.

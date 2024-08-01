@@ -8,7 +8,7 @@ local loadFolders = {
     "haloarmory/ui3d2d", -- Library for 3D2D UIs. Used for in-world UIs.
     --"haloarmory/character_manager", -- In active dev. Do not enable.
     "haloarmory/halo_armory", -- Adds the armory.
-    "haloarmory/halo_ai", -- Adds the ChatGPT AI interace.
+    --"haloarmory/halo_ai", -- Adds the ChatGPT AI interace. Disabled. Rewrite coming soon!
     --"haloarmory/halo_ai_old_disabled", -- The Original ChatGPT AI interace. Disabled. Used a third party server.
     "haloarmory/halo_interface", -- Core files for various 3D3D UI elements.
     "haloarmory/halo_ships", -- Adds persistent ships. And supports save/load ship presets.

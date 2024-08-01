@@ -178,5 +178,17 @@ net.Receive("HALOARMORY.AI", function(len, ply)
             net.WriteString("EditAI-List-Rply")
             net.WriteTable(aiList)
         net.Send(ply)
+
+    elseif command == "Tokenize" then
+        // Get the text
+        local text = net.ReadString()
+        local SHA = net.ReadString()
+
+        // Tokenize the text
+        HALOARMORY.AI.Tokens.Tokenize(text, function(tokens, success)
+            // Send the tokens to the player
+            ply:SendLua("HALOARMORY.AI.Tokens.EncodeClientCallback('" .. SHA .. "', " .. tokens .. ", " .. tostring(success) .. ")")
+        end)
+
     end
 end)

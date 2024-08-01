@@ -23,3 +23,10 @@ function HALOARMORY.INTERFACE.PrettyFormatNumber(number, delimiter)
     -- optional minus and fractional part back
     return minus .. int:reverse():gsub("^,", "") .. fraction
 end
+
+
+function HALOARMORY.INTERFACE.CallbackFuncCaller(callbackFunc, ...)
+    xpcall(callbackFunc, function(err)
+        HALOARMORY.MsgC( Color(255,0,0), "Failed to call callback function. Error: ", Color(255,174,0), err)
+    end, ...)
+end
