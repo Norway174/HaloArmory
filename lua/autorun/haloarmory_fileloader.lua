@@ -112,10 +112,10 @@ function HALOARMORY.LoadAllFiles()
 
 end
 
-HALOARMORY.MsgC("---- HALORP ARMORY LOADING ----")
+HALOARMORY.MsgC(Color(0,100,255), "---- HALO ARMORY LOADING ----")
 HALOARMORY.LoadAllFonts()
 HALOARMORY.LoadAllFiles()
-HALOARMORY.MsgC("---- HALORP ARMORY END ----")
+HALOARMORY.MsgC(Color(0,100,255), "---- HALO ARMORY END ----")
 
 if SERVER then
     hook.Add( "InitPostEntity", "HaloArmory.ULXIntegration", function()
