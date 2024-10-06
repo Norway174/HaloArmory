@@ -10,6 +10,7 @@ local loadFolders = {
     "haloarmory/halo_armory", -- Adds the armory.
     --"haloarmory/halo_ai", -- Adds the ChatGPT AI interace. Disabled. Rewrite coming soon!
     --"haloarmory/halo_ai_old_disabled", -- The Original ChatGPT AI interace. Disabled. Used a third party server.
+    "haloarmory/halo_ar_iff", -- Adds the Augmented Reality IFF system.
     "haloarmory/halo_interface", -- Core files for various 3D3D UI elements.
     "haloarmory/halo_ships", -- Adds persistent ships. And supports save/load ship presets.
     "haloarmory/halo_logistics", -- Adds a logistics system for genering and using supplies.
