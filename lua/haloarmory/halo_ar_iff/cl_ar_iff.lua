@@ -136,7 +136,7 @@ local function ContextWindow( icon, window )
     -- end )
 
     // 1st Button to open the GUI.
-    ContextButton( window, "Helmet AR", "vgui/haloarmory/icons/package.png", function()
+    ContextButton( window, "Helmet AR", "vgui/haloarmory/icons/helmet.png", function()
         window:Remove()
     end )
 
@@ -155,7 +155,7 @@ local function ContextWindow( icon, window )
     -- end )
 
     // 4th Button to call the Concomand.
-    ContextButton( window, "Toggle HUD", "vgui/haloarmory/icons/globe.png", function()
+    ContextButton( window, "Toggle HUD", "vgui/haloarmory/icons/iff.png", function()
         RunConsoleCommand( "AR_IFF.Toggle" )
         surface.PlaySound( "buttons/button24.wav" )
     end,
@@ -167,7 +167,7 @@ end
 
 list.Set( "DesktopWindows", "HALOARMORY.AR_IFF", {
     title		= "Helmet AR",
-    icon		= "vgui/haloarmory/icons/package.png",
+    icon		= "vgui/haloarmory/icons/helmetalt.png",
     width		= 80 * 2,
     height		= 84,
     onewindow	= true,
