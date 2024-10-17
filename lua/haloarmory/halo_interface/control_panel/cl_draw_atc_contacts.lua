@@ -405,6 +405,9 @@ function HALOARMORY.INTERFACE.CONTROL_PANEL.ATC_CONTACTS.DrawScreen( ent )
     surface.SetDrawColor( Color( 0, 0, 0, 79) )
     surface.DrawTexturedRect( (ent.frameW/2)-(380/2), 75, 380, 500 )
 
+    local ply = ply or LocalPlayer()
+    if not IsValid( ply ) then return end
+
     --Draw the title
     draw.SimpleText( "RADAR", "SP_QuanticoHeader", ent.frameW/2, 10, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP )
 

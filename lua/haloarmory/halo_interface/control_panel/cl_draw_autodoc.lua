@@ -222,6 +222,9 @@ function HALOARMORY.INTERFACE.CONTROL_PANEL.AUTODOC.DrawScreen( ent )
     --Draw the title
     draw.SimpleText( "AUTO-DOC", "SP_QuanticoHeader", ent.frameW/2, 10, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP )
 
+    local ply = ply or LocalPlayer()
+    if not IsValid( ply ) then return end
+
     if ent:GetPos():Distance( ply:GetPos() ) >= 250 then return end
 
     --Draw seperator

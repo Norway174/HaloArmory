@@ -140,6 +140,8 @@ end
 
 
 function HALOARMORY.INTERFACE.CONTROL_PANEL.CARGO.DrawLabel( ent )
+    local ply = ply or LocalPlayer()
+    if not IsValid( ply ) then return end
 
     if ent:GetPos():Distance( ply:GetPos() ) >= 100 then
         DrawLabelFar( ent )
