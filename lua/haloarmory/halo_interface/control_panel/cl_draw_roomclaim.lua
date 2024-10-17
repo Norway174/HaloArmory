@@ -18,7 +18,7 @@ end
 
 
 local function draw_button( ent )
-    local ply = ply or LocalPlayer()
+    local ply = LocalPlayer()
     if not IsValid( ply ) then return end
 
     if ent:GetPos():Distance( ply:GetPos() ) >= 150 then return end
@@ -149,6 +149,8 @@ function HALOARMORY.INTERFACE.CONTROL_PANEL.ROOM_CLAIM.DrawScreen( ent )
     surface.SetDrawColor( Color( 255, 255, 255, 42) )
     surface.DrawRect( 20, 100, ent.frameW - 40, 2 )
 
+    local ply = LocalPlayer()
+    if not IsValid( ply ) then return end
 
     --Get Claim details
     local claim_ply = ent:GetClaimedByPly()
@@ -177,6 +179,8 @@ end
 
 
 function HALOARMORY.INTERFACE.CONTROL_PANEL.ROOM_CLAIM.ClaimRoom( ent )
+    local ply = LocalPlayer()
+    if not IsValid( ply ) then return end
 
     if ent:GetPos():Distance( ply:GetPos() ) >= 250 then return end
 
