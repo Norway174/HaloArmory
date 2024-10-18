@@ -269,7 +269,6 @@ function ENT:SpawnVehicle( ply, vehicle_key, vehicle_options )
                     return
                 end
 
-                
                 --Vehicle.HALOARMORY_COST = VehicleTable.cost
                 Vehicle:SetNW2Int( "HALOARMORY_COST", VehicleTable.cost )
                 
@@ -285,6 +284,7 @@ end
 
 
 function ENT:ReclaimVehicle( ply, vehicle )
+    --print( "Reclaiming vehicle", ply, vehicle, vehicle:GetNW2Int( "HALOARMORY_COST", 0 ) )
 
     if not self:GetRequiresSupplies() then
         vehicle:Remove()
@@ -305,7 +305,7 @@ function ENT:ReclaimVehicle( ply, vehicle )
 
     local refund_amount = HALOARMORY.Requisition.RefundAmount( vehicle )
 
-    print( "Refund amount:", refund_amount )
+    --print( "Refund amount:", refund_amount )
 
     HALOARMORY.Logistics.AddNetworkSupplies( network_name, refund_amount )
 

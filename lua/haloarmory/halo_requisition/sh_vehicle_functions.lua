@@ -37,17 +37,24 @@ function HALOARMORY.Requisition.RefundAmount( vehicle )
 
     // Get the vehicle health in percentage. And refund that percentage of the cost.
     local health = vehicle:Health()
-    // Check if the health is 0, and if the vehicle is a simfphys vehicle. If so, get the simfphys health.
+    --print( "Health:", health )
+    // Check if the health is 0, and if the vehicle is a old? simfphys vehicle. If so, get the old? simfphys health.
     if health == 0 and vehicle.GetHP then
-        --print( "Vehicle is simfphys, getting simfphys health." )
         health = vehicle:GetHP()
+        --print( "Vehicle is old simfphys, getting simfphys health.", health )
+    end
+    // Check if the health is 0, and if the vehicle is a simfphys vehicle. If so, get the simfphys health.
+    if health == 0 and vehicle.GetCurHealth then
+        health = vehicle:GetCurHealth()
+        --print( "Vehicle is new simfphys, getting simfphys health.", health )
     end
 
     local max_health = vehicle:GetMaxHealth()
+    --print( "Max Health:", max_health )
     // Check if the max health is 0, and if the vehicle is a simfphys vehicle. If so, get the simfphys max health.
     if max_health == 0 and vehicle.GetMaxHP then
-        --print( "Vehicle is simfphys, getting simfphys max health." )
         max_health = vehicle:GetMaxHP()
+        --print( "Vehicle is simfphys, getting simfphys max health.", max_health )
     end
 
     if max_health == 0 then return refund_amount end
@@ -56,7 +63,6 @@ function HALOARMORY.Requisition.RefundAmount( vehicle )
     refund_amount = refund_amount * health_percentage
 
     --print( "Refund Amount:", refund_amount, "Health Percentage:", health_percentage, "Health:", health, "Max Health:", max_health)
-
     --PrintTable( vehicle:GetTable() )
 
     refund_amount = math.Round( refund_amount )
