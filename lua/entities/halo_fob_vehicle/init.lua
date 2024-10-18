@@ -123,3 +123,35 @@ concommand.Add( "halo_fob_vehicle_toggle_deploy", function( ply, cmd, args )
 
 end )
 
+concommand.Add( "halo_fob_vehicle_deploy", function( ply, cmd, args )
+
+    // Args: Entity Index
+    local entIndex = tonumber( args[1] )
+    local ent = Entity( entIndex )
+
+    if not IsValid( ent ) then return end
+
+    print( "Deploying", ent )
+
+    if isfunction( ent.Deploy ) then
+        ent:Deploy()
+    end
+
+end )
+
+concommand.Add( "halo_fob_vehicle_undeploy", function( ply, cmd, args )
+
+    // Args: Entity Index
+    local entIndex = tonumber( args[1] )
+    local ent = Entity( entIndex )
+
+    if not IsValid( ent ) then return end
+
+    print( "Undeploying", ent )
+
+    if isfunction( ent.Undeploy ) then
+        ent:Undeploy()
+    end
+
+end )
+
