@@ -25,7 +25,7 @@ local function draw_button( ent )
 
     local claim_ply = ent:GetClaimedByPly()
 
-    if claim_ply != NULL and claim_ply != LocalPlayer() then return end
+    if claim_ply != NULL and claim_ply != ply then return end
 
     --Draw the button to claim the room
     local btn_w = 300
