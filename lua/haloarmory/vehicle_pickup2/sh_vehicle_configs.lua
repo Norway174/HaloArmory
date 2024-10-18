@@ -138,6 +138,10 @@ HALOARMORY.Vehicles.allowedVehicles = {
         ["pos"] = Vector(-500, 0, 60),
         ["rad"] = 200,
     },
+    ["imp_halo_urf_falcon"] = { 
+        ["pos"] = Vector(-10, 0, 55),
+        ["rad"] = 60,
+    },
     // [LFS] - Halo [Flock]
     ["imp_halo_flock_falcon"] = { 
         ["pos"] = Vector(-10, 0, 55),
@@ -264,6 +268,28 @@ HALOARMORY.Vehicles.allowedVehicles = {
         {
             ["pos"] = Vector(165, 0, 130),
             ["rad"] = 120,
+        },
+        {
+            ["pos"] = Vector(-357, 90, 116),
+            ["rad"] = 90,
+        }
+    },
+    ["sim_fphys_halo_m313elephant"] = {
+        {
+            ["pos"] = Vector(-230, 10, 110),
+            ["rad"] = 150,
+        },
+        {
+            ["pos"] = Vector(-30, 10, 130),
+            ["rad"] = 120,
+        },
+        {
+            ["pos"] = Vector(165, 10, 130),
+            ["rad"] = 120,
+        },
+        {
+            ["pos"] = Vector(-300, 90, 116),
+            ["rad"] = 90,
         }
     },
     // Halo Custom Edition
@@ -276,20 +302,56 @@ HALOARMORY.Vehicles.allowedVehicles = {
         ["rad"] = 30,
     },
     ["sim_fphys_halorevamp_militarytruck_long_exposed"] = {
-        ["pos"] = Vector(-130, 0, 100),
-        ["rad"] = 60,
+        {
+            ["pos"] = Vector(-200, 0, 100),
+            ["rad"] = 75,
+        },
+        {
+            ["pos"] = Vector(-80, 0, 100),
+            ["rad"] = 75,
+        }
     },
     ["sim_fphys_halorevamp_militarytruck_long_covered"] = {
-        ["pos"] = Vector(-130, 0, 100),
-        ["rad"] = 60,
+        {
+            ["pos"] = Vector(-200, 0, 100),
+            ["rad"] = 75,
+        },
+        {
+            ["pos"] = Vector(-80, 0, 100),
+            ["rad"] = 75,
+        }
     },
     ["sim_fphys_halorevamp_militarytruck_long"] = {
-        ["pos"] = Vector(-130, 0, 100),
-        ["rad"] = 60,
+        {
+            ["pos"] = Vector(-200, 0, 100),
+            ["rad"] = 75,
+        },
+        {
+            ["pos"] = Vector(-80, 0, 100),
+            ["rad"] = 75,
+        }
     },
     ["sim_fphys_halorevamp_militarytruck_long_bed"] = {
-        ["pos"] = Vector(-130, 0, 100),
-        ["rad"] = 60,
+        {
+            ["pos"] = Vector(-200, 0, 100),
+            ["rad"] = 75,
+        },
+        {
+            ["pos"] = Vector(-80, 0, 100),
+            ["rad"] = 75,
+        }
+    },
+    ["sim_fphys_halorevamp_militarytruck"] = {
+        {
+            ["pos"] = Vector(-80, 0, 100),
+            ["rad"] = 75,
+        }
+    },
+    ["sim_fphys_halorevamp_militarytruck_crate"] = {
+        {
+            ["pos"] = Vector(-80, 0, 100),
+            ["rad"] = 75,
+        }
     },
     ["sim_fphys_halorevamp_militarytruck_bed"] = {
         ["pos"] = Vector(-85, 0, 100),
