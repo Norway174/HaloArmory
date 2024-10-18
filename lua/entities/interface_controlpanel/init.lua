@@ -9,7 +9,7 @@ include("shared.lua")
 function ENT:Initialize()
  
 	-- Sets what model to use
-	self:SetModel( "models/nirrti/tablet/tablet_sfm.mdl" )
+	self:SetModel( "models/nirrti/tablet/tablet_sfm.mdl" ) -- Mobile Computing Pack
 
 	-- Sets what color to use
 	--self:SetColor( Color( 200, 255, 200 ) )

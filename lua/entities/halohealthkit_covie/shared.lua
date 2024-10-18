@@ -10,4 +10,4 @@ ENT.Spawnable = true
 
 ENT.IsHALOARMORY = true
 
-ENT.MedKitModel = "models/impulse/halo/props/covenant/military/beacon.mdl"
+ENT.MedKitModel = "models/impulse/halo/props/covenant/military/beacon.mdl" -- Halo - Covenant Props & Entities

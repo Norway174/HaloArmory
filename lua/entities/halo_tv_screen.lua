@@ -20,7 +20,7 @@ ENT.PanelScale = .07
 
 ENT.frameW, ENT.frameH = 946, 600
 
-ENT.Model = "models/valk/halo3/unsc/props/military/monitor_sm.mdl"
+ENT.Model = "models/valk/halo3/unsc/props/military/monitor_sm.mdl" -- Halo UNSC Prop Pack - Halo 3
 
 ENT.Theme = {
     ["background"] = "vgui/haloarmory/frigate_doors/control_panel/background.png",

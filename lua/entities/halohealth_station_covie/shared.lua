@@ -12,7 +12,7 @@ ENT.IsHALOARMORY = true
 
 ENT.Editable = true
 
-ENT.BaseModel = "models/impulse/halo/props/covenant/military/cov_sword_holder.mdl"
+ENT.BaseModel = "models/impulse/halo/props/covenant/military/cov_sword_holder.mdl" -- Halo - Covenant Props & Entities
 
 ENT.SpawnPos = Vector( 0, 0, 0 )
 ENT.SpawnAng = Angle( 90, -90, 90 )

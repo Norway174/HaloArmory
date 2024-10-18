@@ -13,7 +13,7 @@ ENT.IsHALOARMORY = true
 
 ENT.Editable = true
 
-ENT.DoorModel = "models/valk/h3odst/unsc/props/doors/door_entrance1.mdl"
+ENT.DoorModel = "models/valk/h3odst/unsc/props/doors/door_entrance1.mdl" -- Halo UNSC Prop Pack - Halo 3 ODST
 
 ENT.ControlPanel = {}
 

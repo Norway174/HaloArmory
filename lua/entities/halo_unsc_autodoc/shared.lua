@@ -11,7 +11,7 @@ ENT.RenderGroup = RENDERGROUP_OPAQUE
 
 ENT.IsHALOARMORY = true
 
-ENT.BedModel = "models/valk/h3/unsc/props/crashcart/medicalstretcher.mdl"
+ENT.BedModel = "models/valk/h3/unsc/props/crashcart/medicalstretcher.mdl" -- Halo UNSC Prop Pack - Halo 3
 
 ENT.CONSTS = {}
 ENT.CONSTS.MENU = {}

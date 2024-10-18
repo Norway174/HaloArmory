@@ -23,19 +23,31 @@ ENT.MaxCapacity = 5000
 ENT.RandomMin = 0
 ENT.RandomMax = 0
 
-ENT.DeviceModel = "models/valk/halo2a/unsc/props/military/crate_packing.mdl"
+ENT.DeviceModel = "models/ishi/halo_rebirth/props/human/packing_crate_small.mdl" -- Halo UNSC Prop Pack
 ENT.DeviceModelAlts = {
-    ["models/valk/halo2a/unsc/props/military/crate_packing.mdl"] = true,
-    ["models/ishi/halo_rebirth/props/human/packing_crate_small.mdl"] = true,
-    ["models/ishi/halo_rebirth/props/human/oni_crate_small.mdl"] = true,
-    ["models/valk/haloreach/unsc/props/crate/crate_packing.mdl"] = true,
+    -- Halo Models
+    ["models/h3/objects/gear/human/military/crate_packing/crate_packing.mdl"] = true,
+    -- Halo Reach Model Pack
     ["models/rena_haloreach/crate_packing.mdl"] = true,
-    ["models/valk/h3/unsc/props/crates/techcrate_single.mdl"] = true,
+    -- Halo UNSC Prop Pack
+    ["models/ishi/halo_rebirth/props/human/oni_crate_small.mdl"] = true,
+    ["models/ishi/halo_rebirth/props/human/packing_crate_small.mdl"] = true,
+    -- Halo UNSC Prop Pack - Halo 3
     ["models/valk/h3/unsc/props/crates/crate_packing.mdl"] = true,
-    ["models/valk/halo3/unsc/props/industrial/box_wooden_small_b.mdl"] = true,
-    ["models/valk/halo3/unsc/props/military/crate_packing.mdl"] = true,
+    -- Halo UNSC Prop Pack - Halo 4
     ["models/valk/h4/unsc/props/crate/crate.mdl"] = true,
+    -- Halo UNSC Prop Pack - Halo Reach
+    ["models/valk/haloreach/unsc/props/crate/crate_packing.mdl"] = true,
+    -- Halo UNSC Prop Pack Redux - Halo 2A
+    ["models/valk/halo2a/unsc/props/military/crate_packing.mdl"] = true,
+    -- Halo UNSC Prop Pack Redux - Halo 3
+    ["models/valk/halo3/unsc/props/industrial/box_wooden_small_b.mdl"] = true,
+    ["models/valk/halo3/unsc/props/industrial/crate_multi_single.mdl"] = true,
+    ["models/valk/halo3/unsc/props/military/crate_packing.mdl"] = true,
+    -- Halo UNSC Prop Pack Redux - Halo Reach
+    ["models/valk/haloreach/unsc/props/military/crate_packing.mdl"] = true,
 }
+
 function ENT:SetupModel()
     self:SetModel( self.DeviceModel )
 end

@@ -11,7 +11,7 @@ ENT.RenderGroup = RENDERGROUP_TRANSLUCENT
 
 ENT.IsHALOARMORY = true
 
-ENT.Model = "models/ishi/halo_rebirth/props/human/ammo_box.mdl"
+ENT.Model = "models/ishi/halo_rebirth/props/human/ammo_box.mdl" -- Halo UNSC Prop Pack
 ENT.Skin = 0
 ENT.Bodygroups = {
     [1] = 1,
