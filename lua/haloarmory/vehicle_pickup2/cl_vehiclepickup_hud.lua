@@ -9,11 +9,10 @@ local function DrawBoxShip()
     for _, ent in pairs( ents.GetAll() ) do
         if not HALOARMORY.Vehicles.allowedVehicles[ent.GetSpawn_List and ent:GetSpawn_List() or ent:GetClass()] then continue end
         
-
         local pos = ent:GetPos()
-        --local offset = Vector(-500, 0, 60)
         local offsets = HALOARMORY.Vehicles.allowedVehicles[ent.GetSpawn_List and ent:GetSpawn_List() or ent:GetClass()]
 
+        // If the vehicle has a single offset, convert it to a table.
         if offsets.pos and offsets.rad then
             offsets = {
                 {
@@ -23,18 +22,13 @@ local function DrawBoxShip()
             }
         end
 
-        --print( "Offsets: ", offsets )
-        --PrintTable( offsets )
-
+        // Draw the wireframe box!
         for k, v in pairs(offsets) do
-            --print(k, v)
-                
             local offset = v.pos
             pos = ent:LocalToWorld(offset)
 
             local radius = v.rad
 
-            -- Draw the wireframe sphere!
             render.DrawWireframeSphere( pos, radius, 10, 10, Color( 9, 177, 255), true)
         end
 
@@ -126,36 +120,12 @@ local function CheckVehicleCargo()
     local offset = 6
     draw.SimpleText( name, "Default", posX, posY - (h / 2) - offset, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER )
     
-    local IsLoaded = false
-    local TheLoad = {}
-    for k, v in pairs( ent:GetNW2VarTable() ) do
-        // check if the var name starts with "HALOARMORY.Vehicles.LoadedObject_"
-        if not string.StartWith( k, "HALOARMORY.Vehicles.LoadedObject_" ) then
-            continue
-        end
-
-        local loaded_ent = ent:GetNW2Entity( k )
-
-        if not IsValid( loaded_ent ) then continue end
-
-        --print( "Loaded Object: ", loaded_ent )
-
-        // Get the number after the "HALOARMORY.Vehicles.LoadedObject_"
-        table.insert( TheLoad, loaded_ent )
-        IsLoaded = true
-    end
+    local IsLoaded, TheLoad = HALOARMORY.Vehicles.IsLoadedVehicle( ent )
 
     if not CanCarry then
         draw.SimpleText( "No load capacity", "DefaultSmall", posX, posY - (h / 2) + offset, Color(248,168,18), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER )
     elseif IsLoaded then
         draw.SimpleText( "Loaded: "..#TheLoad, "DefaultSmall", posX, posY - (h / 2) + offset, Color(163,255,14), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER )
-
-        -- for k, v in ipairs(TheLoad) do
-        --     --PrintTable(v)
-        --     --print( v )
-        --     if not IsValid( v ) then continue end
-        --     debugoverlay.EntityTextAtPosition( v:GetPos(), 1, v:GetClass(), FrameTime(), Color( 255, 255, 255 ) )
-        -- end
 
     else
         draw.SimpleText( "Unloaded", "DefaultSmall", posX, posY - (h / 2) + offset, Color(255,14,14), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER )

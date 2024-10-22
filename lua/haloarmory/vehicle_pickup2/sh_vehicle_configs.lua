@@ -633,6 +633,33 @@ function HALOARMORY.Vehicles.GetFromTraceVehicle( ply )
 end
 
 
+function HALOARMORY.Vehicles.IsLoadedVehicle( ent )
+    if not ent:IsValid() then
+        return false, {}
+    end
+
+    local IsLoaded = false
+    local TheLoad = {}
+    for k, v in pairs( ent:GetNW2VarTable() ) do
+        // check if the var name starts with "HALOARMORY.Vehicles.LoadedObject_"
+        if not string.StartWith( k, "HALOARMORY.Vehicles.LoadedObject_" ) then
+            continue
+        end
+
+        local loaded_ent = ent:GetNW2Entity( k )
+
+        if not IsValid( loaded_ent ) then continue end
+
+        --print( "Loaded Object: ", loaded_ent )
+
+        // Get the number after the "HALOARMORY.Vehicles.LoadedObject_"
+        table.insert( TheLoad, loaded_ent )
+        IsLoaded = true
+    end
+
+    return IsLoaded, TheLoad
+end
+
 
 -- concommand.Add( "VEHICLE.DebugSH", function( ply, cmd, args )
 --     local veh = HALOARMORY.Vehicles.GetFromTraceVehicle( ply )
