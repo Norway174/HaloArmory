@@ -215,7 +215,8 @@ function HALOARMORY.Requisition.OpenVehiclePad( PadEnt )
             local Vehicle_Ent, VehicleModel, VehiclePrintName = HALOARMORY.Requisition.GetModelAndNameFromVehicle( v["entity"] )
 
             if not Vehicle_Ent then continue end
-        
+            if not VehicleModel then VehicleModel = "error" end
+
             // Make sure VehicleModel ends with .mdl, if not, then it can't be a valid model, and we should return.
             if not string.EndsWith( VehicleModel, ".mdl" ) then VehicleModel = "error" end
 
@@ -670,11 +671,12 @@ function HALOARMORY.Requisition.OpenVehiclePad( PadEnt )
         LoadoutBodygroupsScrollbar:Dock( FILL )
 
         local ListOfBodygroups = vehicle["bodygroups"]
-
+        VehicleModelPreview.Entity.SelectedBodygroup = {}
 
         for key, value in pairs( ListOfBodygroups ) do
 
             VehicleModelPreview.Entity:SetBodygroup( VehicleModelPreview.Entity:FindBodygroupByName( key ), value[1] )
+            VehicleModelPreview.Entity.SelectedBodygroup[key] = value[1]
 
             if table.Count( value ) <= 1 then continue end
 
@@ -730,10 +732,11 @@ function HALOARMORY.Requisition.OpenVehiclePad( PadEnt )
                 end
 
                 BodygroupSubPanel.DoClick = function(self)
-                    //print("Clicked bodygroup", key, BodygroupSubPanel.BodygroupNumber)
+                    print("Clicked bodygroup", key, BodygroupSubPanel.BodygroupNumber, value[self.BodygroupNumber + 1])
 
                     VehicleModelPreview.Entity:SetBodygroup( VehicleModelPreview.Entity:FindBodygroupByName( key ), value[self.BodygroupNumber + 1] )
-                    VehicleModelPreview.Entity.SelectedBodygroup = value
+                    VehicleModelPreview.Entity.SelectedBodygroup[key] = value[self.BodygroupNumber + 1]
+                    print(VehicleModelPreview.Entity.SelectedBodygroup)
                 end
 
             end
@@ -774,7 +777,7 @@ function HALOARMORY.Requisition.OpenVehiclePad( PadEnt )
             local bodygroups = {}
 
             for key, value in pairs( ListOfBodygroups ) do
-                bodygroups[key] = VehicleModelPreview.Entity.SelectedBodygroup or 1
+                bodygroups[key] = VehicleModelPreview.Entity.SelectedBodygroup[key] or 1
             end
 
             selected_Options["bodygroups"] = bodygroups

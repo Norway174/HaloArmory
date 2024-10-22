@@ -209,30 +209,34 @@ function ENT:SpawnVehicle( ply, vehicle_key, vehicle_options )
 
             end
 
-            // Set the options here
-            if VehicleInQueue.options.color then
-                local selectedColor = VehicleTable.colors[VehicleInQueue.options.color]
-                if IsColor(selectedColor) then
-                    Vehicle:SetColor( selectedColor )
-                end
-            end
-
-            if VehicleInQueue.options.skin then
-                local selectedSkin = VehicleTable.skins[VehicleInQueue.options.skin]
-                if isnumber(selectedSkin) then
-                    Vehicle:SetSkin( selectedSkin )
-                end
-            end
-
-            if VehicleInQueue.options.bodygroups then
-                local selectedBodygroups = VehicleInQueue.options.bodygroups
-                if istable(selectedBodygroups) then
-                    for k, v in pairs(selectedBodygroups) do
-                        local BodygroupVal = VehicleTable.bodygroups[k][v]
-                        Vehicle:SetBodygroup( Vehicle:FindBodygroupByName( k ), BodygroupVal )
+            timer.Simple( 0.1, function()
+                // Set the options here
+                if VehicleInQueue.options.color then
+                    local selectedColor = VehicleTable.colors[VehicleInQueue.options.color]
+                    if IsColor(selectedColor) then
+                        Vehicle:SetColor( selectedColor )
                     end
                 end
-            end
+
+                if VehicleInQueue.options.skin then
+                    local selectedSkin = VehicleTable.skins[VehicleInQueue.options.skin]
+                    if isnumber(selectedSkin) then
+                        Vehicle:SetSkin( selectedSkin )
+                    end
+                end
+
+                if VehicleInQueue.options.bodygroups then
+                    local selectedBodygroups = VehicleInQueue.options.bodygroups
+                    PrintTable( VehicleInQueue )
+                    if istable(selectedBodygroups) then
+                        for k, v in pairs(selectedBodygroups) do
+                            --local BodygroupVal = VehicleTable.bodygroups[k][v]
+                            --print( "Setting bodygroup", k, v, BodygroupVal )
+                            Vehicle:SetBodygroup( Vehicle:FindBodygroupByName( k ), v )
+                        end
+                    end
+                end
+            end )
 
             timer.Simple( 0.5, function()
                 // If vehicle is frozen, unfreeze it
@@ -293,7 +297,8 @@ function ENT:ReclaimVehicle( ply, vehicle )
 
     local network_name = self:GetNetworkID()
 
-    if not network_name then
+
+    if not network_name or not HALOARMORY.Logistics.Networks[network_name] then
         print( "Network name is invalid" )
         return
     end
@@ -305,7 +310,7 @@ function ENT:ReclaimVehicle( ply, vehicle )
 
     local refund_amount = HALOARMORY.Requisition.RefundAmount( vehicle )
 
-    --print( "Refund amount:", refund_amount )
+    print( "Refund amount:", refund_amount )
 
     HALOARMORY.Logistics.AddNetworkSupplies( network_name, refund_amount )
 
