@@ -75,7 +75,7 @@ function ENT:InsertCargo( ply, cargo_ent, amount )
     print( "Inserting cargo 2", success, inserted )
 
     if success then
-        cargo_ent:SetStored( current_cargo - inserted )
+        cargo_ent:SetStored( math.Clamp(current_cargo - inserted, 0, cargo_ent:GetMaxCapacity()) )
     end
 
 
