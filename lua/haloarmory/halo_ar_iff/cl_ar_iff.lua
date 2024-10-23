@@ -160,7 +160,7 @@ local function ContextWindow( icon, window )
         surface.PlaySound( "buttons/button24.wav" )
     end,
     function()
-        return hook.GetTable()["PreDrawHalos"][ARIFF_HOOK] and "Disable HUD" or "Enable HUD"
+        return hook.GetTable()["PreDrawHalos"][ARIFF_HOOK] and "Disable IFF HUD" or "Enable IFF HUD"
     end )
 
 end
