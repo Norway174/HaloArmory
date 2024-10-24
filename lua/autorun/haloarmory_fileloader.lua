@@ -10,7 +10,7 @@ local loadFolders = {
     "haloarmory/halo_armory", -- Adds the armory.
     --"haloarmory/halo_ai", -- Adds the ChatGPT AI interace. Disabled. Rewrite coming soon!
     --"haloarmory/halo_ai_old_disabled", -- The Original ChatGPT AI interace. Disabled. Used a third party server.
-    "haloarmory/halo_ar_iff", -- Adds the Augmented Reality IFF system.
+    "haloarmory/halo_helmet_ar", -- Adds the Augmented Reality Helmet system.
     "haloarmory/halo_interface", -- Core files for various 3D3D UI elements.
     "haloarmory/halo_ships", -- Adds persistent ships. And supports save/load ship presets.
     "haloarmory/halo_logistics", -- Adds a logistics system for genering and using supplies.
@@ -127,3 +127,63 @@ if SERVER then
         HALOARMORY.MsgC( "HaloArmory ULX integration completed." )
     end )
 end
+
+
+
+
+
+
+// DEBUG!!!!!
+
+-- Define the custom console command
+concommand.Add("check_nwvars_datatables", function(ply, cmd, args)
+    -- Perform a trace from the player's view
+    local tr = util.TraceLine({
+        start = ply:EyePos(),
+        endpos = ply:EyePos() + ply:GetAimVector() * 5000,  -- Trace for 5000 units
+        filter = ply  -- Ignore the player themselves
+    })
+    
+    -- Check if we hit something
+    if tr.Hit and IsValid(tr.Entity) then
+        local entityHit = tr.Entity  -- Get the Entity that was hit
+        print("Hit Entity:", entityHit)
+
+        -- Gather and print all networked variables (NWVars) on the Entity
+        print("\n--- Networked Variables (NWVars) ---")
+        
+        -- Use the global function BuildNetworkedVarsTable to get all NWVars
+        local npcNWVars = entityHit:GetNWVarTable()
+        
+        if npcNWVars and istable(npcNWVars) and table.Count(npcNWVars) > 0 then
+            PrintTable(npcNWVars)
+        else
+            print("No Networked Variables found for this Entity.")
+        end
+
+        -- Gather and print all networked variables (NW2Vars) on the Entity
+        print("\n--- Networked Variables (NW2Vars) ---")
+        
+        -- Use the global function BuildNetworkedVarsTable to get all NWVars
+        local npcNW2Vars = entityHit:GetNW2VarTable()
+        
+        if npcNW2Vars and istable(npcNW2Vars) and table.Count(npcNW2Vars) > 0 then
+            PrintTable(npcNW2Vars)
+        else
+            print("No Networked 2 Variables found for this Entity.")
+        end
+
+        -- Now gather and print DataTables
+        print("\n--- DataTables ---")
+        local saveTable = entityHit.GetNetworkVars and entityHit:GetNetworkVars() or nil
+
+        if saveTable and istable(saveTable) and table.Count(saveTable) > 0 then
+            PrintTable(saveTable)
+        else
+            print("No DataTables found for this Entity.")
+        end
+
+    else
+        print("No Entity was hit.")
+    end
+end)
