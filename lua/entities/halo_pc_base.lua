@@ -1,7 +1,7 @@
 AddCSLuaFile()
 
 ENT.Type = "anim"
-ENT.Base = "base_gmodentity"
+ENT.Base = "halo_tv_screen"
  
 ENT.PrintName = "PC Base"
 ENT.Category = "HALOARMORY - UNSC"
@@ -45,58 +45,6 @@ function ENT:SetupDataTables()
 
 end
 
-
-if SERVER then
-    function ENT:CustomModelSetup()
-        self:SetSubMaterial( 4, "Models/effects/vol_light001" )
-    end
-
-    function ENT:Initialize()
-        self:SetModel(self.Model)
-        self:CustomModelSetup()
-
-        -- Physics stuff
-        self:SetMoveType( MOVETYPE_VPHYSICS )
-        self:SetSolid( SOLID_VPHYSICS )
-
-        -- Init physics only on server, so it doesn't mess up physgun beam
-        if ( SERVER ) then self:PhysicsInit( SOLID_VPHYSICS ) end
-
-        local phys = self:GetPhysicsObject()
-        if ( IsValid( phys ) ) then
-            phys:Wake()
-            --phys:Sleep()
-
-            phys:EnableMotion( false )
-        end
-
-    end
-
-    ENT.SpawnAngles = Angle(0,180,0)
-    function ENT:SpawnFunction( ply, tr, ClassName )
-
-        if ( !tr.Hit ) then return end
-        
-        local SpawnPos = tr.HitPos + tr.HitNormal
-        local SpawnAng = ply:EyeAngles()
-        
-        local ent = ents.Create( ClassName )
-    
-        local SpawnOff = ent.SpawnAngles
-        SpawnAng.p = 0
-        SpawnAng.p = SpawnAng.p + SpawnOff.p
-        SpawnAng.y = SpawnAng.y + SpawnOff.y
-        SpawnAng.z = SpawnAng.z + SpawnOff.z
-    
-        ent:SetPos( SpawnPos )
-        ent:SetAngles( SpawnAng )
-        ent:Spawn()
-        ent:Activate()
-    
-        return ent
-    
-    end
-end
 
 if CLIENT then
 

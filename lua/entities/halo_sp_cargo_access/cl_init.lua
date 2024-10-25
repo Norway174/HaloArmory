@@ -22,7 +22,7 @@ function ENT:DrawTranslucent()
     local imgW, imgH = 350, 450
     surface.DrawTexturedRect( (self.frameW / 2) - (imgW / 2), (self.frameH / 2) - (imgH / 2) - 10, imgW, imgH )
 
-    local succ, err = pcall(HALOARMORY.INTERFACE.CONTROL_PANEL.DrawManager, self)
+    local succ, err = pcall(self.DrawScreen, self)
     if not succ then
         print("Error from Supply Point Base Function related to device:", self )
         print(err)
@@ -32,4 +32,30 @@ function ENT:DrawTranslucent()
 
 
     --render.DrawWireframeSphere( self:GetPos() + Vector(0,0,30), 50, 10, 10, Color( 255, 0, 0) , false)
+end
+
+
+function ENT:DrawScreen()
+    local ent = self
+
+    local RoomName = ent:GetDeviceName() or "ERR: No Name"
+
+    draw.DrawText( RoomName, "SP_QuanticoHeader", ent.frameW / 2, 49 / 5, ent.Theme["colors"]["text_color"], TEXT_ALIGN_CENTER )
+
+    local network = ent:GetNetworkTable()
+    network = util.JSONToTable( network )
+
+    if( !network ) then
+        draw.DrawText( "Invalid Network ID", "SP_QuanticoRate", ent.frameW / 2, ent.frameH - 90, Color( 255, 0, 0, 96), TEXT_ALIGN_CENTER )
+
+    end
+
+    local networkID = "0"
+    if ( ent.GetNetworkID and isfunction(ent.GetNetworkID) ) then
+        networkID = ent:GetNetworkID()
+    end
+
+    // Draw ID
+    draw.DrawText( "Network ID: " .. networkID, "SP_QuanticoNormal", ent.frameW / 2, ent.frameH - 35, Color( 173, 173, 173, 33), TEXT_ALIGN_CENTER )
+
 end

@@ -1,6 +1,6 @@
 
 ENT.Type = "anim"
-ENT.Base = "halo_pc_base"
+ENT.Base = "halo_tv_screen"
  
 ENT.PrintName = "Requisition Console"
 ENT.Category = "HALOARMORY - Vehicle Requisition"
@@ -11,8 +11,10 @@ ENT.IsHALOARMORY = true
 
 ENT.Editable = true
 
+ENT.Model = 4
 
-function ENT:CustomDataTables()
+
+function ENT:SetupDataTables()
 
     self:NetworkVar( "String", 0, "ConsoleName", { KeyName = "ConsoleName",	Edit = { type = "String", order = 1 } } )
     self:NetworkVar( "String", 1, "ConsoleID", { KeyName = "ConsoleID",	Edit = { type = "String", order = 2 } } )

@@ -1,7 +1,7 @@
 
 include('shared.lua')
 
-function ENT:Draw3D2D( ent )
+function ENT:DrawScreen()
     local ply = ply or LocalPlayer()
     if not IsValid( ply ) then return end
 
@@ -13,15 +13,15 @@ function ENT:Draw3D2D( ent )
         headerText = self:GetConsoleName()
     end
 
-    draw.DrawText( headerText, "HK_QuanticoHeader", self.frameW * .5, self.frameH * .15, Color( 255, 255, 255, 255 ), TEXT_ALIGN_CENTER )
+    draw.DrawText( headerText, "SP_QuanticoHeader", self.frameW * .5, self.frameH * .15, Color( 255, 255, 255, 255 ), TEXT_ALIGN_CENTER )
 
     // Distance check
-    if self:GetPos():Distance( ply:GetPos() ) >= 100 then return end
+    if self:GetPos():Distance( ply:GetPos() ) >= 250 then return end
     --if true then return end
 
     // Draw a large button that says "Request Vehicle"
     local btnOutline = 30
-    local btnW, btnH = 1000, 300
+    local btnW, btnH = self.frameW * .8, self.frameH * .3
     btnW, btnH = btnW+btnOutline, btnH+btnOutline
     draw.RoundedBox( 0, (self.frameW * .5)-(btnW * .5), (self.frameH * .5)-(btnH * .5), btnW, btnH, Color( 9, 255, 0) )
     btnW, btnH = btnW-btnOutline, btnH-btnOutline
@@ -75,6 +75,6 @@ function ENT:Draw3D2D( ent )
         end
     end
     draw.RoundedBox( 0, (self.frameW * .5)-(btnW * .5), (self.frameH * .5)-(btnH * .5), btnW, btnH, btnColor )
-    draw.DrawText( "Request Vehicle", "HK_QuanticoHeader",self.frameW * .5, (self.frameH * .5)-(btnH * .3), Color( 255, 255, 255, 255 ), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER )
+    draw.DrawText( "Request Vehicle", "SP_QuanticoHeader",self.frameW * .5, (self.frameH * .5)-(btnH * .33333), Color( 255, 255, 255, 255 ), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER )
 
 end
