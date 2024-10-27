@@ -29,7 +29,7 @@ function ENT:Undeploy()
     local ang = isangle(self.OriginalAng) and self.OriginalAng or self:GetAngles()
 
     // Create a simphys vehicle
-    self.Vehicle = simfphys.SpawnVehicleSimple( self.VehicleEnt, pos + Vector( 0,0,5 ), ang ) -- [Simfphys] Halo 5
+    self.Vehicle = simfphys.SpawnVehicleSimple( self.VehicleEnt, pos + Vector( 0,0,20 ), ang ) -- [Simfphys] Halo 5
 
     self:DeleteOnRemove( self.Vehicle )
 
@@ -45,6 +45,8 @@ function ENT:Undeploy()
     self:SetNW2Bool( "Deployed", false )
 
     self.Vehicle:SetNW2Entity( "FOB", self )
+
+    HALOARMORY.Ships.WipeProps( self )
 
 end
 
@@ -94,6 +96,10 @@ function ENT:Deploy()
 
     self.Deployed = true
     self:SetNW2Bool( "Deployed", true )
+
+    if self:GetAutoLoadPreset() ~= "" then
+        HALOARMORY.Ships.LoadShip( self, self:GetAutoLoadPreset() )
+    end
 
 end
 
