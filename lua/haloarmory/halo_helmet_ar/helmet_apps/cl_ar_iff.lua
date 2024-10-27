@@ -24,18 +24,23 @@ function HALOARMORY.AR.IFF.DrawIFF()
 	local PROP = {}
 
 	for _, target in pairs( HALOARMORY.AR.IFF.Targets ) do
+		if not IsValid( target.Ent ) then continue end
 		if target.EntType == "Player" then
 			if target.Ent == LocalPlayer() then continue end
+			if not target.Ent:Alive() then continue end
 			if target.Ent:Team() == LocalPlayer():Team() then
 				table.insert( FRIEND, target.Ent )
 			else
 				table.insert( FRIEND, target.Ent )
 			end
 		elseif target.EntType == "NPC-Friendly" then
+			if not target.Ent:Alive() then continue end
 			table.insert( FRIEND, target.Ent )
 		elseif target.EntType == "NPC-Hostile" then
+			if not target.Ent:Alive() then continue end
 			table.insert( FOE, target.Ent )
 		elseif target.EntType == "NPC-Neutral" then
+			if not target.Ent:Alive() then continue end
 			table.insert( NEUTRAL, target.Ent )
 		elseif target.EntType == "Prop" then
 			table.insert( PROP, target.Ent )
