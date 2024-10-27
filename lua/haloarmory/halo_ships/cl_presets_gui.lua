@@ -387,6 +387,36 @@ net.Receive( "HALOARMORY.SHIPS.PRESETS.PresetsList", function( len, ply )
 
 end )
 
+
+
+
+
+properties.Add( "presets_menu", {
+    MenuLabel = "Presets...", -- Name to display on the context menu
+    Order = 10001, -- The order to display this property relative to other properties
+    MenuIcon = "icon16/disk.png", -- The icon to display next to the property
+    PrependSpacer = true,
+
+    Filter = function( self, ent, ply ) -- A function that determines whether an entity is valid for this property
+        if ( !IsValid( ent ) ) then return false end
+        if ( !ent.HALOARMORY_Ships_Presets ) then return false end
+        if ( ent.deployed ~= nil and ent.deployed ~= true ) then return false end
+        if ( not ply:IsAdmin() ) then return false end
+
+        return true
+        
+    end,
+    Action = function( self, ent ) -- The action to perform upon using the property ( Clientside )
+
+        // Open the Presets GUI
+        HALOARMORY.Ships.Presets.OpenGUI( ent )
+
+    end,
+    Receive = function( self, length, ply ) -- The action to perform upon using the property ( Serverside )
+        // Nothing
+    end 
+} )
+
 --[[ 
 ################################
 ||                            ||
