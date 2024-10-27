@@ -19,6 +19,8 @@ ENT.HALOARMORY_Ships_Presets = true
 // List of attached props
 ENT.HALOARMORY_Attached = {}
 
+ENT.CanDrag = false // Perfect Hands support to remove the hand icon over screens.
+
 
 function ENT:SetupDataTables()
 

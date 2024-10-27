@@ -14,6 +14,8 @@ ENT.DeviceName = "Controller Node"
 ENT.DeviceType = "controller"
 ENT.RateM = 0 // Positive number to add resources, negative to take away, 0 to disable. Resources are updates every minute.
 
+ENT.CanDrag = false // Perfect Hands support to remove the hand icon over screens.
+
 ENT.DeviceModel = "models/valk/h4/unsc/props/terminal/terminal_small.mdl"
 function ENT:SetupModel()
     -- Set the sub material to the model

@@ -14,6 +14,8 @@ ENT.IsHALOARMORY = true
 
 ENT.DeviceType = "generic_screen"
 
+ENT.CanDrag = false // Perfect Hands support to remove the hand icon over screens.
+
 ENT.PanelPos = Vector(-2.5, 30.8, 21)
 ENT.PanelAng = Angle(0, -90, 90)
 ENT.PanelScale = .07
