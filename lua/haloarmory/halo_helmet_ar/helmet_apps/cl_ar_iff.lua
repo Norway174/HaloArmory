@@ -28,7 +28,7 @@ function HALOARMORY.AR.IFF.DrawIFF()
 		if target.EntType == "Player" then
 			if target.Ent == LocalPlayer() then continue end
 			if not target.Ent:Alive() then continue end
-			if target.Ent:Team() == LocalPlayer():Team() then
+			if target.Ent.Team and target.Ent:Team() == LocalPlayer():Team() then
 				table.insert( FRIEND, target.Ent )
 			else
 				table.insert( FRIEND, target.Ent )
