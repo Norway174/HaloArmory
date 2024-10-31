@@ -5,6 +5,8 @@ TOOL.Name = "#tool.halo_ship_attacher.name"
 TOOL.Command = nil
 TOOL.ConfigName = "" --Setting this means that you do not have to create external configuration files to define the layout of the tool config-hud 
 
+TOOL.AddToMenu = false
+
 if(CLIENT) then
     TOOL.SelectedShip = nil
     TOOL.Information = {
