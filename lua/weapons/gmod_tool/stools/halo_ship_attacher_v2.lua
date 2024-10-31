@@ -11,6 +11,9 @@ TOOL.Information = {
     { name = "reload" },
 }
 
+TOOL.LeftClickAutomatic = false
+TOOL.RightClickAutomatic = false
+
 if CLIENT then
     language.Add("tool.halo_ship_attacher_v2.name","Ship Attacher V2")
     language.Add("tool.halo_ship_attacher_v2.desc","Attaches a prop to the ship")
