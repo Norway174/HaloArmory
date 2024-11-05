@@ -98,7 +98,6 @@ properties.Add( "toggle_lightsgen", {
     Filter = function( self, ent, ply ) -- A function that determines whether an entity is valid for this property
         if ( !IsValid( ent ) ) then return false end
         if ( ent:IsPlayer() ) then return false end
-        if ( not ply:IsAdmin() ) then return false end
         if ( not ent.ToggleLightsGenProp ) then return false end
 
         return true
