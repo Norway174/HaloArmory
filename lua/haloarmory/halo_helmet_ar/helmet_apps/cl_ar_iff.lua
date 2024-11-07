@@ -24,26 +24,37 @@ function HALOARMORY.AR.IFF.DrawIFF()
 	local PROP = {}
 
 	for _, target in pairs( HALOARMORY.AR.IFF.Targets ) do
-		if not IsValid( target.Ent ) then continue end
-		if target.EntType == "Player" then
-			if target.Ent == LocalPlayer() then continue end
-			if not target.Ent.Alive and not target.Ent:Alive() then continue end
-			if target.Ent.Team and target.Ent:Team() == LocalPlayer():Team() then
-				table.insert( FRIEND, target.Ent )
+		local ent = target.Ent
+		local entType = target.EntType
+
+		if not IsValid( ent ) then continue end
+
+		if entType == "Player" then
+			if ent == LocalPlayer() then continue end
+
+			if not ent:Alive() then continue end
+
+			if ent.Team and ent:Team() == LocalPlayer():Team() then
+				table.insert( FRIEND, ent )
 			else
-				table.insert( FRIEND, target.Ent )
+				table.insert( FRIEND, ent )
 			end
-		elseif target.EntType == "NPC-Friendly" then
-			if not target.Ent.Alive and not target.Ent:Alive() then continue end
-			table.insert( FRIEND, target.Ent )
-		elseif target.EntType == "NPC-Hostile" then
-			if not target.Ent.Alive and not target.Ent:Alive() then continue end
-			table.insert( FOE, target.Ent )
-		elseif target.EntType == "NPC-Neutral" then
-			if not target.Ent.Alive and not target.Ent:Alive() then continue end
-			table.insert( NEUTRAL, target.Ent )
-		elseif target.EntType == "Prop" then
-			table.insert( PROP, target.Ent )
+
+		elseif entType == "NPC-Friendly" then
+			
+			table.insert( FRIEND, ent )
+
+		elseif entType == "NPC-Hostile" then
+			
+			table.insert( FOE, ent )
+
+		elseif entType == "NPC-Neutral" then
+			
+			table.insert( NEUTRAL, ent )
+
+		elseif entType == "Prop" then
+			table.insert( PROP, ent )
+
 		end
 	end
 

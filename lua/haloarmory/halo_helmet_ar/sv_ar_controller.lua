@@ -31,10 +31,17 @@ function HALOARMORY.AR.IFF.SendTargets()
 
 		// Add all NPCs to the target list.
 		for _, npc in pairs( ents.FindByClass( "npc_*" ) ) do
+			if not ply:TestPVS( npc ) then continue end
+
 			if npc:IsNPC() or npc:IsNextBot() then
+				// IV04 - Don't add the drop ships.
+				if npc.IsDropship then continue end
+				if npc.VoiceType == "Scarab" then continue end // Don't add the scarab.
+
+
 				// Get NPC disposition.
 				if ( isfunction(npc.Disposition) ) then
-					if ( npc:Disposition( ply ) == D_LI ) then
+					if ( npc:Disposition( ply ) == D_LI ) or npc.Faction == "FACTION_UNSC" then
 						local Target = {}
 						Target.Ent = npc
 						Target.EntType = "NPC-Friendly"
