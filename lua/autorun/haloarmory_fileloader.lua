@@ -132,17 +132,10 @@ if SERVER then
         local function AddPermaPropsSupport()
             PermaProps.SpecialENTSSave = PermaProps.SpecialENTSSave or {}
             PermaProps.SpecialENTSSave["frigate_door"] = function( ent )
-                print("Saving frigate_door")
 
                 local content = {}
                 content.Other = {}
-                -- ENT.ControlPanel.Inner = {}
-                -- ENT.ControlPanel.Inner.Pos = Vector(10,35,55)
-                -- ENT.ControlPanel.Inner.Ang = Angle(180,-90,-90)
 
-                -- ENT.ControlPanel.Outter = {}
-                -- ENT.ControlPanel.Outter.Pos = Vector(-10,-35,55)
-                -- ENT.ControlPanel.Outter.Ang = Angle(180,90,-90)
                 content.Other["InnerPos"] = ent.ControlPanelInside:GetPos()
                 content.Other["InnerAng"] = ent.ControlPanelInside:GetAngles()
 
@@ -158,14 +151,8 @@ if SERVER then
 
             PermaProps.SpecialENTSSpawn = PermaProps.SpecialENTSSpawn or {}
             PermaProps.SpecialENTSSpawn["frigate_door"] = function( ent, data )
-                print("Loading frigate_door", data)
+
                 if not data then return end
-
-                --ent.ControlPanel.Inner.Pos = data["InnerPos"]
-                --ent.ControlPanel.Inner.Ang = data["InnerAng"]
-
-                --ent.ControlPanel.Outter.Pos = data["OutterPos"]
-                --ent.ControlPanel.Outter.Ang = data["OutterAng"]
 
                 ent:Spawn()
                 ent:Activate()
