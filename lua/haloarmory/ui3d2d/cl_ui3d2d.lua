@@ -1,5 +1,11 @@
 HALOARMORY.MsgC("Client HALO ui3d2d Library Loading.")
 
+/*
+
+Credits
+https://github.com/TomDotBat/ui3d2d
+
+*/
 
 ui3d2d = ui3d2d or {}
 
