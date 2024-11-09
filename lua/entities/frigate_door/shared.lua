@@ -190,7 +190,13 @@ end
 
 function ENT:CanPlyAcces( ply, accessList )
 
-    if not IsValid(ply) and not ply:IsPlayer() then return false end
+    if not IsValid(ply) and not ply:IsPlayer() then
+        if CLIENT then
+            ply = LocalPlayer()
+        else
+            return false
+        end
+    end
 
     accessList = accessList or self.AccessList or {}
 

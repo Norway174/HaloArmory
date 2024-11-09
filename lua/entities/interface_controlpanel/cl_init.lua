@@ -13,12 +13,14 @@ ENT.Theme["icons"]["settings"] = Material( ENT.Theme["icons"]["settings"], "smoo
 ENT.Theme["icons"]["attention"] = Material( ENT.Theme["icons"]["attention"], "smooth" )
 
 
-    local RoomName = "ERR: No Name"
+local RoomName = "ERR: No Name"
+
+local ply = LocalPlayer()
 
 function ENT:DrawTranslucent()
     self:DrawModel()
 
-    --print("Drawing")
+    if not IsValid(ply) then ply = LocalPlayer() end
 
     local ang = self:GetAngles()
 
