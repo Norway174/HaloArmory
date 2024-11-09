@@ -227,8 +227,10 @@ if CLIENT then
 
         --PrintTable(model_table)
 
+
         if not ui3d2d.startDraw(self:LocalToWorld(model_table["pos"]), self:LocalToWorldAngles(model_table["ang"]), model_table["scale"], self) then return end
 
+            --print("Drawing Screen")
             self.frameW = model_table["frameW"]
             self.frameH = model_table["frameH"]
         
