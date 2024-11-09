@@ -34,9 +34,9 @@ function HALOARMORY.AR.IFF.SendTargets()
 			if not ply:TestPVS( npc ) then continue end
 
 			if npc:IsNPC() or npc:IsNextBot() then
-				// IV04 - Don't add the drop ships.
-				if npc.IsDropship then continue end
-				if npc.VoiceType == "Scarab" then continue end // Don't add the scarab.
+				
+				if npc.IsDropship then continue end // IV04 - Don't add the drop ships.
+				if npc.VoiceType == "Scarab" then continue end // IV04 - Don't add the scarab.
 
 
 				// Get NPC disposition.
