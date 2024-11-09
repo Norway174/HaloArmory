@@ -304,4 +304,3 @@ properties.Add( "save_tablets", {
         ent:SaveTabletPositions()
     end 
 } )
-

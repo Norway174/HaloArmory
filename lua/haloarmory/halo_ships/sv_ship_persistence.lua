@@ -429,8 +429,9 @@ end
 
         if propData.Class == "frigate_door" then
             if propData.Other["AccessList"] then
-
-                prop:SetAccessTable( propData.Other["AccessList"] )
+                timer.Simple( 0.1, function()
+                    prop:SetAccessTable( propData.Other["AccessList"] )
+                end )
 
             end
         end

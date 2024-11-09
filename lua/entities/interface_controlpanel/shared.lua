@@ -69,6 +69,10 @@ ENT.frameW, ENT.frameH = 357, 265
 function ENT:SetupDataTables()
 
     self:NetworkVar( "Entity", 0, "DoorParent" )
-    self:NetworkVar( "String", 0, "PanelType", { KeyName = "PanelType", Edit = { type = "Combo", order = 1, text = "Select...", values = HALOARMORY.INTERFACE.CONTROL_PANEL["Panel_Types"] } } )
+    self:NetworkVar( "String", 0, "PanelType", { KeyName = "PanelType", Edit = { type = "Combo", order = 1, text = "Select...", values = {
+        ["Outside"] = "outside",
+        ["Inside"] = "inside",
+        --["test"] = "test",
+    } } } )
 
 end
