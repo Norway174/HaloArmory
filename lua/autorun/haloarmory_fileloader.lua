@@ -126,7 +126,75 @@ if SERVER then
 
         HALOARMORY.MsgC( "HaloArmory ULX integration completed." )
     end )
+
+    if PermaProps then
+        local function AddPermaPropsSupport()
+            PermaProps.SpecialENTSSave = PermaProps.SpecialENTSSave or {}
+            PermaProps.SpecialENTSSave["frigate_door"] = function( ent )
+                print("Saving frigate_door")
+
+                local content = {}
+                content.Other = {}
+                -- ENT.ControlPanel.Inner = {}
+                -- ENT.ControlPanel.Inner.Pos = Vector(10,35,55)
+                -- ENT.ControlPanel.Inner.Ang = Angle(180,-90,-90)
+
+                -- ENT.ControlPanel.Outter = {}
+                -- ENT.ControlPanel.Outter.Pos = Vector(-10,-35,55)
+                -- ENT.ControlPanel.Outter.Ang = Angle(180,90,-90)
+                content.Other["InnerPos"] = ent.ControlPanelInside:GetPos()
+                content.Other["InnerAng"] = ent.ControlPanelInside:GetAngles()
+
+                content.Other["OutterPos"] = ent.ControlPanelOutside:GetPos()
+                content.Other["OutterAng"] = ent.ControlPanelOutside:GetAngles()
+
+                content.Other["AccessList"] = ent.AccessList
+
+                PrintTable(content.Other["AccessList"])
+    
+                return content
+            end
+
+            PermaProps.SpecialENTSSpawn = PermaProps.SpecialENTSSpawn or {}
+            PermaProps.SpecialENTSSpawn["frigate_door"] = function( ent, data )
+                print("Loading frigate_door", data)
+                if not data then return end
+
+                --ent.ControlPanel.Inner.Pos = data["InnerPos"]
+                --ent.ControlPanel.Inner.Ang = data["InnerAng"]
+
+                --ent.ControlPanel.Outter.Pos = data["OutterPos"]
+                --ent.ControlPanel.Outter.Ang = data["OutterAng"]
+
+                ent:Spawn()
+                ent:Activate()
+
+                if IsValid( ent.ControlPanelInside ) then
+                    print("Setting ControlPanelInside")
+                    ent.ControlPanelInside:SetPos( data["InnerPos"] )
+                    ent.ControlPanelInside:SetAngles( data["InnerAng"] )
+                end
+
+                if IsValid( ent.ControlPanelOutside ) then
+                    ent.ControlPanelOutside:SetPos( data["OutterPos"] )
+                    ent.ControlPanelOutside:SetAngles( data["OutterAng"] )
+                end
+
+                timer.Simple( 0.1, function()
+                    ent:SetAccessTable(data["AccessList"])
+                end)
+
+                return true
+            end
+
+            HALOARMORY.MsgC( "HaloArmory PermaProps integration completed." )
+        end
+        hook.Add( "Initialize", "HALOARMORYxPERMAPROPS", AddPermaPropsSupport )
+
+        AddPermaPropsSupport()
+    end
 end
+
 
 
 
