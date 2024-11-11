@@ -49,6 +49,30 @@ function HALOARMORY.ARMORY.GetWeapons( ply )
         end
     end
 
+    // Call a hook to allow other addons to add weapons to the list
+    for k, v in pairs( hook.GetTable()["HALOARMORY.ARMORY.GetWeapons"] or {}) do
+        if isfunction(v) then
+            local success, err = pcall(function()
+
+                local weps, adminweps = v(ply)
+
+                if weps and istable(weps) then
+                    print("Adding weapons from hook", unpack(weps))
+                    table.Add(listOfWeapons, weps)
+                end
+                if adminweps and istable(adminweps) then
+                    print("Adding admin weapons from hook", unpack(adminweps))
+                    table.Add(listOfWeapons, adminweps)
+                    table.Add(AdminWeapons, adminweps)
+                end
+            end)
+            
+            if not success then
+                ErrorNoHalt("Error in HALOARMORY.ARMORY.GetWeapons hook: ", err)
+            end
+        end
+    end
+
 
     local return_list = {}
     for k, v in pairs(listOfWeapons) do
