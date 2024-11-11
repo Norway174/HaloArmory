@@ -50,7 +50,8 @@ function HALOARMORY.ARMORY.GetWeapons( ply )
     end
 
     // Call a hook to allow other addons to add weapons to the list
-    for k, v in pairs( hook.GetTable()["HALOARMORY.ARMORY.GetWeapons"] or {}) do
+    local hooks = hook.GetTable()["HALOARMORY.ARMORY.GetWeapons"]
+    for k, v in pairs( hooks or {}) do
         if isfunction(v) then
             local success, err = pcall(function()
 
