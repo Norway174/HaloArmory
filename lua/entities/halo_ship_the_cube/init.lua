@@ -29,13 +29,13 @@ function ENT:Initialize()
 		phys:EnableMotion( false )
 	end
 	
-	timer.Simple( 1, function() 
-		// Remove PermaProp data.
-		if self.PermaProps then
-			--print("Frigate was a PermaProp.")
-			self.PermaProps = nil
-		end
-	end )
+	-- timer.Simple( 1, function() 
+	-- 	// Remove PermaProp data.
+	-- 	if self.PermaProps then
+	-- 		--print("Frigate was a PermaProp.")
+	-- 		self.PermaProps = nil
+	-- 	end
+	-- end )
 
 	-- if HALOARMORY.Ships.Autoload:GetString() ~= "false" then
 	--     timer.Simple( .1, function()
