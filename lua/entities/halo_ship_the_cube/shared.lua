@@ -1,6 +1,6 @@
 
 ENT.Type = "anim"
-ENT.Base = "halo_ship_unsc_frigate"
+ENT.Base = "base_gmodentity"
  
 ENT.PrintName = "[SHIP] THE CUBE"
 ENT.Category = "HALOARMORY - SHIPS"
@@ -13,3 +13,31 @@ ENT.RenderGroup = RENDERGROUP_OPAQUE_HUGE
 ENT.IsHALOARMORY = true
 
 ENT.Model = "models/hunter/blocks/cube05x05x05.mdl"
+
+ENT.HALOARMORY_Ships_Presets = true
+
+// List of attached props
+ENT.HALOARMORY_Attached = {}
+
+ENT.CanDrag = false // Perfect Hands support to remove the hand icon over screens.
+
+
+function ENT:SetupDataTables()
+
+    self:NetworkVar( "String", 1, "AutoLoadPreset" )
+
+    if SERVER then
+        self:SetAutoLoadPreset( "" )
+        self:NetworkVarNotify( "AutoLoadPreset", self.OnAutoLoadPresetChanged )
+    end
+
+end
+
+function ENT:OnAutoLoadPresetChanged( name, old, new )
+
+    if not SERVER then return end
+    if ( new == "" ) then return end
+
+    HALOARMORY.Ships.LoadShip( self, new )
+
+end

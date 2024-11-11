@@ -1,6 +1,6 @@
 
 ENT.Type = "anim"
-ENT.Base = "halo_ship_unsc_frigate"
+ENT.Base = "halo_ship_the_cube"
  
 ENT.PrintName = "[SHIP] CORVETTE"
 ENT.Category = "HALOARMORY - SHIPS"
