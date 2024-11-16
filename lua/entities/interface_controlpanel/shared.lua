@@ -73,6 +73,8 @@ function ENT:SetupDataTables()
         ["Outside"] = "outside",
         ["Inside"] = "inside",
         --["test"] = "test",
+        ["Elevator_Floors"] = "elevator_floors",
+        ["Elevator_Call"] = "elevator_call",
     } } } )
 
 end

@@ -4,6 +4,8 @@ AddCSLuaFile("shared.lua")
 include("shared.lua")
 
 
+AddCSLuaFile("cl_doorpanel.lua")
+AddCSLuaFile("cl_elevatorpanel.lua")
 
 
 function ENT:Initialize()
