@@ -243,3 +243,16 @@ concommand.Add("check_nwvars_datatables", function(ply, cmd, args)
         print("No Entity was hit.")
     end
 end)
+
+
+
+// Remove all VGUI elements
+if CLIENT then
+    concommand.Add("remove_all_vgui", function(ply, cmd, args)
+        print("Removing all VGUI elements.")
+        for k, v in pairs(vgui.GetAll()) do
+            print("Removing VGUI Element:", v)
+            v:Remove()
+        end
+    end)
+end
