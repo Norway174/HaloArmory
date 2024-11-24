@@ -248,11 +248,32 @@ if CLIENT then
                 --Error_StopDraw = true
             end
 
+            self:DrawCursor( ui3d2d )
+
         ui3d2d.endDraw() --Finish the UI render
     end
 
     function ENT:DrawScreen()
         // Draw Custom screens here
+    end
+
+    ENT.DrawCursor = false
+    //ENT.CursorIcon = Material("icon16/cursor.png")
+    ENT.CursorIcon = Material("icon16/bullet_white.png")
+    function ENT:DrawCursor( ui )
+        if self.DrawCursor then return end
+
+        if not ui then return end
+
+        local mouseX, mouseY = ui.getCursorPos()
+        local cursor_size = 16
+
+        if not mouseX or not mouseY then return end
+        if not ui.isHovering(0, 0, self.frameW, self.frameH) then return end
+
+        surface.SetDrawColor( Color( 255, 255, 255) )
+        surface.SetMaterial( self.CursorIcon )
+        surface.DrawTexturedRect( mouseX - cursor_size / 2, mouseY - cursor_size / 2, cursor_size, cursor_size )
     end
 
     function ENT:Initialize()
