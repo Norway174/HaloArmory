@@ -85,19 +85,3 @@ end
 --hook.Add( "InitPostEntity", "HALOARMORY.SpawnShipsInit", HALOARMORY.Ships.SpawnShips )
 --hook.Add( "PostCleanupMap", "HALOARMORY.SpawnShipsCleanup", HALOARMORY.Ships.SpawnShips )
 
-
---[[ 
-##================================##
-||                                ||
-|| Prevent certain Entities from  ||
-||being picked up and manipulated.||
-||                                ||
-##================================##
- ]]
-
-// Prevent the Ships from being picked up! 
-local function ShipPickup( ply, ent, phys )
-    if ( ent.HALOARMORY_Ships_Presets ) then return false end
-end
-hook.Add( "PhysgunPickup", "HALOARMORY.ShipPickup", ShipPickup )
-hook.Add( "CanPlayerUnfreeze", "HALOARMORY.ShipPickup", ShipPickup )

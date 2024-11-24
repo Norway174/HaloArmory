@@ -14,6 +14,10 @@ TOOL.Information = {
 TOOL.LeftClickAutomatic = false
 TOOL.RightClickAutomatic = false
 
+TOOL.IsHALOARMORY = true
+
+TOOL.HALOARMORY_ShipAttacher = true
+
 if CLIENT then
     language.Add("tool.halo_ship_attacher_v2.name","Ship Attacher V2")
     language.Add("tool.halo_ship_attacher_v2.desc","Attaches a prop to the ship")
@@ -242,7 +246,6 @@ properties.Add( "ship_attacher_v2", {
         if ( ent:IsPlayer() ) then return false end
         
         if ( not IsValid( ply:GetTool() ) ) then return false end
-        if ( not IsValid( ply:GetTool():GetEnt( 1 ) ) ) then return false end
 
         return true
         
