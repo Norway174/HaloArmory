@@ -16,7 +16,7 @@ function ENT:BuildElevator()
     -- Set up the moving part of the elevator
     self.bridgeElevator = ents.Create("func_movelinear")
     self.bridgeElevator:SetPos(self:LocalToWorld(Vector(-1279, 0, 2460)))
-    self.bridgeElevator:SetAngles(Angle(0, 0, 0))
+    self.bridgeElevator:SetAngles(self:LocalToWorldAngles(Angle(0, 0, 0)))
     self.bridgeElevator:SetNoDraw(true)
     self.bridgeElevator:SetModel( self.ElvatorModel )
 	self.bridgeElevator:SetMoveType(MOVETYPE_PUSH)
