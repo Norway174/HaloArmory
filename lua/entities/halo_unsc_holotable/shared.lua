@@ -16,6 +16,9 @@ ENT.TableMdl = "models/valk/halo3/unsc/props/military/monitor_med.mdl" -- Halo U
 ENT.TableLegsMdl = "models/hunter/blocks/cube075x2x075.mdl" -- Vanilla Gmod
 
 
+ENT.CanDrag = false // Perfect Hands support to remove the hand icon over screens.
+
+
 // models/impulse/halo/unsc/vehicles/unsc_fleet/stalwart_class_frigate/stalwart_class_frigate_small.mdl // Halo - Fleets
 --[[
 [HALOARMORY] ------------------------------------------------------
