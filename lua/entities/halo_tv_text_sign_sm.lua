@@ -14,7 +14,7 @@ ENT.DeviceType = "text_screen"
 
 ENT.Editable = false
 
-ENT.Model = 1
+ENT.SelectedModel = 1
 
 function ENT:SetupDataTables()
 
@@ -122,7 +122,7 @@ function ENT:DrawScreen()
     if not ply or not ply:IsPlayer() then return end
 
     // Stop drawing if the player is too far away
-    if self:GetPos():Distance( ply:GetPos() ) >= 3000 then return end
+    if self:GetPos():Distance( ply:GetPos() ) >= 2000 then return end
 
 
     --Draw the text

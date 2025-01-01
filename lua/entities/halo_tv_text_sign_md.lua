@@ -10,4 +10,4 @@ ENT.Spawnable = true
 
 ENT.IsHALOARMORY = true
 
-ENT.Model = 2
+ENT.SelectedModel = 2

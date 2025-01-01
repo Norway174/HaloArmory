@@ -16,6 +16,11 @@ ENT.DeviceType = "generic_screen"
 
 ENT.CanDrag = false // Perfect Hands support to remove the hand icon over screens.
 
+
+
+ENT.SelectedModel = 1 // Default model
+ENT.CanChangeModel = true
+
 ENT.PanelPos = Vector(-2.5, 30.8, 21)
 ENT.PanelAng = Angle(0, -90, 90)
 ENT.PanelScale = .07
@@ -117,10 +122,6 @@ ENT.ScreenModels = {
     }
 }
 
-
-
-ENT.SelectedModel = 1
-
 ENT.Theme = {
     ["background"] = "vgui/haloarmory/frigate_doors/control_panel/background.png",
     ["colors"] = {
@@ -198,54 +199,33 @@ if SERVER then
 end
 
 if CLIENT then
-    local Error_StopDraw = false
+
     function ENT:Draw()
-        --render.SuppressEngineLighting(true)
         self:DrawModel()
-        --render.SuppressEngineLighting(false)
 
-        --if Error_StopDraw then return end
-
-        --if self.ScreenModels[self.Model]["model"] ~= self:GetModel() then
-        Error_StopDraw = true
         for k, v in pairs(self.ScreenModels) do
             if v["model"] == self:GetModel() then
                 self.Model = k
-                Error_StopDraw = false
                 break
             end
         end
-        --end
 
         local model_table = self.ScreenModels[self.Model]
 
         if not istable(model_table) then return end
 
-        if isstring(model_table["background"]) then
-            model_table["background"] = Material( model_table["background"], "smooth" )
-        end
-
-        --PrintTable(model_table)
-
 
         if not ui3d2d.startDraw(self:LocalToWorld(model_table["pos"]), self:LocalToWorldAngles(model_table["ang"]), model_table["scale"], self) then return end
 
-            --print("Drawing Screen")
             self.frameW = model_table["frameW"]
             self.frameH = model_table["frameH"]
-        
-            if isfunction( model_table["draw_bg"] ) then
-                model_table["draw_bg"]( self, model_table["background"] )
-            else
-                surface.SetDrawColor( Color( 0, 0, 0, 79) )
-                surface.DrawRect( 0, 0, self.frameW, self.frameH )
-            end
+
+            self:DrawBackground()
 
             local succ, err = pcall(self.DrawScreen, self) --Call the draw function
             if not succ then
                 print("Error from Supply Point Base Function related to device:", self )
                 print(err)
-                --Error_StopDraw = true
             end
 
             self:DrawCursor( ui3d2d )
@@ -255,6 +235,25 @@ if CLIENT then
 
     function ENT:DrawScreen()
         // Draw Custom screens here
+    end
+
+    function ENT:DrawBackground()
+        // Get the model table
+        local model_table = self.ScreenModels[self.Model]
+        if not istable(model_table) then return end
+
+        // Check if the background is a string, if so, convert it to a material
+        if isstring(model_table["background"]) then
+            model_table["background"] = Material( model_table["background"], "smooth" )
+        end
+
+        // Call the draw background function if it exists, otherwise, draw a default background
+        if isfunction( model_table["draw_bg"] ) then
+            model_table["draw_bg"]( self, model_table["background"] )
+        else
+            surface.SetDrawColor( Color( 0, 0, 0, 79) )
+            surface.DrawRect( 0, 0, self.frameW, self.frameH )
+        end
     end
 
     ENT.DrawCursor = false
@@ -280,12 +279,12 @@ if CLIENT then
         self:PreInit()
     end
 
-
 end
+
 
 function ENT:PreInit()
+    // Shared init code
 end
-
 
 
 
@@ -301,6 +300,7 @@ properties.Add( "set_screen_model", {
         if ( ent:IsPlayer() ) then return false end
         if ( !gamemode.Call( "CanProperty", ply, "bodygroups", ent ) ) then return false end
         if ( not istable( ent.ScreenModels ) ) then return false end
+        if ( not ent.CanChangeModel ) then return false end
 
         return true
     end,
@@ -334,6 +334,8 @@ properties.Add( "set_screen_model", {
         local model = net.ReadUInt( 8 )
 
         if not IsValid( ent ) then return end
+
+        if not ent.CanChangeModel then return end
 
         ent:SetModel(ent.ScreenModels[model]["model"])
         ent.SelectedModel = model

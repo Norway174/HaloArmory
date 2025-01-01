@@ -84,7 +84,10 @@ do --Rendering context creation and mouse position getters
         local isRendering
 
         function ui3d2d.startDraw(pos, angles, scale, ignoredEntity) --Starts a new 3d2d ui rendering context
-            if isRendering then --[[ print("[ui3d2d] Attempted to draw a new 3d2d ui without ending the previous one.") ]] return end
+            if isRendering then
+                --[[ print("[ui3d2d] Attempted to draw a new 3d2d ui without ending the previous one.") ]]
+                return
+            end
 
             local eyePos = localPlayer:EyePos()
             local eyePosToUi = pos - eyePos
