@@ -1,5 +1,6 @@
 
 AddCSLuaFile("cl_init.lua")
+AddCSLuaFile("cl_map.lua")
 AddCSLuaFile("shared.lua")
 include("shared.lua")
 

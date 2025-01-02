@@ -27,8 +27,16 @@ ENT.CanDrag = false // Perfect Hands support to remove the hand icon over screen
  ]]
 
  function ENT:SetupDataTables()
+
+    // Enable the map drawing bool
+    self:NetworkVar("Bool", 0, "DrawMap", { KeyName = "DrawMap", Edit = { type = "Boolean", order = 1, category = "Map" } })
+
+    if SERVER then
+        self:SetDrawMap( true )
+    end
+
     local intIndex = 0 -- Separate index tracker for Int type
-    local boolIndex = 0 -- Separate index tracker for Bool type
+    local boolIndex = 1 -- Separate index tracker for Bool type
     local stringIndex = 0 -- Separate index tracker for String type
 
     for i = 1, 4 do
@@ -111,16 +119,6 @@ ENT.CanDrag = false // Perfect Hands support to remove the hand icon over screen
         end
     end
 
-    if CLIENT then
-        -- for i = 1, 4 do
-        --     local modelKey = "HoloModel" .. i
-        --     for _, var in ipairs({ "_Enable", "_Model", "_PosF", "_PosL", "_PosU", "_Ang", "_Scale" }) do
-        --         self:NetworkVarNotify(modelKey .. var, function(ent, name, old, new)
-        --             ent:UpdateHoloModel(name, old, new)
-        --         end)
-        --     end
-        -- end
-    end
 end
 
 
