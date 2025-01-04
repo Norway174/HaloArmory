@@ -26,7 +26,7 @@ ENT.RandomMax = 0
 ENT.DeviceModel = "models/ishi/halo_rebirth/props/human/packing_crate_small.mdl" -- Halo UNSC Prop Pack
 ENT.DeviceModelAlts = {
     -- Halo Models
-    ["models/h3/objects/gear/human/military/crate_packing/crate_packing.mdl"] = true,
+    --["models/h3/objects/gear/human/military/crate_packing/crate_packing.mdl"] = true,
     -- Halo Reach Model Pack
     ["models/rena_haloreach/crate_packing.mdl"] = true,
     -- Halo UNSC Prop Pack
