@@ -35,7 +35,7 @@ ENT.ScreenModels = {
             self:SetSubMaterial(0, "model_color")
             self:SetSubMaterial(2, "null")
         end,
-        ["pos"] = Vector(-2.5, 30.8, 21),
+        ["pos"] = Vector(-2.3, 30.8, 21),
         ["ang"] = Angle(0, -90, 90),
         ["scale"] = .07,
         ["frameW"] = 946,

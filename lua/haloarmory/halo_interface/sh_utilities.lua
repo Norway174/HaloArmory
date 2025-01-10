@@ -30,3 +30,4 @@ function HALOARMORY.INTERFACE.CallbackFuncCaller(callbackFunc, ...)
         HALOARMORY.MsgC( Color(255,0,0), "Failed to call callback function. Error: ", Color(255,174,0), err)
     end, ...)
 end
+
