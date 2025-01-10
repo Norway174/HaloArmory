@@ -46,6 +46,8 @@ ENT.DeviceModelAlts = {
     ["models/valk/halo3/unsc/props/military/crate_packing.mdl"] = true,
     -- Halo UNSC Prop Pack Redux - Halo Reach
     ["models/valk/haloreach/unsc/props/military/crate_packing.mdl"] = true,
+    -- Halo Covenant Prop Pack
+    ["models/valk/h5/covenant/props/crates/crate_packing.mdl"] = true,
 }
 
 function ENT:SetupModel()
