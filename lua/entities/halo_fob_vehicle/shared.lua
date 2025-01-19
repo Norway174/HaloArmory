@@ -20,7 +20,7 @@ ENT.HALOARMORY_Attached = {}
 ENT.VehiclePackagedModel = "models/props_junk/popcan01a.mdl" --Default Gmod
 
 ENT.VehicleEnt = "sim_fphys_halo_militarytruck_Cargo" -- [Simfphys] Halo 5
-ENT.VehicleEnt = "sim_fphys_halorevamp_militarytruck_long_cargo" -- Halo Custom Edition
+--ENT.VehicleEnt = "sim_fphys_halorevamp_militarytruck_long_cargo" -- Halo Custom Edition
 
 ENT.DeployedModel = "models/valk/haloreach/unsc/props/trailer/trailer.mdl" -- Halo UNSC Prop Pack - Halo Reach
 
