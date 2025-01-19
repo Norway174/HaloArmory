@@ -3,6 +3,8 @@ HALOARMORY.MsgC("Server HALO ARMORY Loadout Persistence Loading.")
 HALOARMORY.ARMORY = HALOARMORY.ARMORY or {}
 HALOARMORY.ARMORY.PERSISTENCE = HALOARMORY.ARMORY.PERSISTENCE or {}
 
+local ShouldLoadWeapons = CreateConVar( "haloarmory_load_weapons", "1", FCVAR_ARCHIVE, "Should load weapons on player spawn?" )
+
 
 function HALOARMORY.ARMORY.PERSISTENCE.GetSavedWeapons( ply )
     local playerID = ply:SteamID64()
@@ -62,6 +64,8 @@ function HALOARMORY.ARMORY.PERSISTENCE.LoadWeapons( ply )
 
 end
 hook.Add( "PlayerLoadout", "HALOARMORY.ARMORY.PERSISTENCE.LoadWeaponsHook", function( ply )
+    if not ShouldLoadWeapons:GetBool() then return end
+    
     timer.Simple(.1, function()
         HALOARMORY.ARMORY.PERSISTENCE.LoadWeapons( ply )
     end)
