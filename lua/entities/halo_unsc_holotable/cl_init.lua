@@ -50,6 +50,12 @@ function ENT:UpdateHoloModel()
                 hologram:SetMaterial("")
                 hologram:SetColor(Color(255, 255, 255, 255))
             end
+
+            hologram.Think = function()
+                if not IsValid(self) then
+                    hologram:Remove()
+                end
+            end
         else
             if IsValid(self.HoloModels[i]) then
                 self.HoloModels[i]:Remove()
@@ -69,9 +75,12 @@ function ENT:Think()
 end
 
 function ENT:OnRemove()
-    hook.Remove("PreDrawSkyBox", self.HookId)
-    hook.Remove("PrePlayerDraw", self.HookId)
-    hook.Remove("PreDrawViewModel", self.HookId)
+
+    if self.HookId then
+        hook.Remove("PreDrawSkyBox", self.HookId)
+        hook.Remove("PrePlayerDraw", self.HookId)
+        hook.Remove("PreDrawViewModel", self.HookId)
+    end
 
     for i = 1, 4 do
         if IsValid(self.HoloModels[i]) then
