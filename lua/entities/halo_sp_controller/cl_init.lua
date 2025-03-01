@@ -11,6 +11,9 @@ function ENT:DrawTranslucent()
     if not ui3d2d.startDraw(self:LocalToWorld(self.PanelPos), self:LocalToWorldAngles(self.PanelAng), self.PanelScale, self) then return end 
 
     --print("Drawing")
+    if isstring(self.Theme["background"]) then
+        self.Theme["background"] = Material( self.Theme["background"], "smooth" )
+    end
 
     surface.SetMaterial( self.Theme["background"] )
     surface.SetDrawColor( self.Theme["colors"]["background_color"] )
