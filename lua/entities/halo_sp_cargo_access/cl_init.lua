@@ -16,6 +16,10 @@ function ENT:DrawTranslucent()
 
     draw.RoundedBox( 32, 0, 0, self.frameW, self.frameH, self.Theme["colors"]["background_color"] )
 
+    if isstring(self.Theme["background"]) then
+        self.Theme["background"] = Material( self.Theme["background"], "smooth" )
+    end
+
     surface.SetMaterial( self.Theme["background"] )
     surface.SetDrawColor( self.Theme["colors"]["background_color"] )
 
