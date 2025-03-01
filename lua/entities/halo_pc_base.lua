@@ -10,6 +10,8 @@ ENT.Spawnable = true
 
 ENT.RenderGroup = RENDERGROUP_OPAQUE
 
+ENT.IsHALOARMORY = true
+
 ENT.DeviceType = "pc_base"
 
 --ENT.Model = 4
