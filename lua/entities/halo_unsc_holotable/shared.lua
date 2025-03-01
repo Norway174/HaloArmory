@@ -18,6 +18,7 @@ ENT.TableLegsMdl = "models/hunter/blocks/cube075x2x075.mdl" -- Vanilla Gmod
 
 ENT.CanDrag = false // Perfect Hands support to remove the hand icon over screens.
 
+ENT.InitialHoloModel = "models/impulse/halo/unsc/vehicles/unsc_fleet/stalwart_class_frigate/stalwart_class_frigate_small.mdl"
 
 // models/impulse/halo/unsc/vehicles/unsc_fleet/stalwart_class_frigate/stalwart_class_frigate_small.mdl // Halo - Fleets
 --[[
@@ -97,7 +98,7 @@ ENT.CanDrag = false // Perfect Hands support to remove the hand icon over screen
     if SERVER then
         -- Initialize default values
         self:SetHoloModel1_Enable(true)
-        self:SetHoloModel1_Model("models/impulse/halo/unsc/vehicles/unsc_fleet/stalwart_class_frigate/stalwart_class_frigate_small.mdl")
+        self:SetHoloModel1_Model(self.InitialHoloModel)
         self:SetHoloModel1_PosF(0)
         self:SetHoloModel1_PosL(0)
         self:SetHoloModel1_PosU(0)
