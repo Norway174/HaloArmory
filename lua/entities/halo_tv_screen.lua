@@ -308,7 +308,9 @@ properties.Add( "set_screen_model", {
     MenuOpen = function( self, option, ent, tr )
         local submenu = option:AddSubMenu()
         for k, v in pairs( ent.ScreenModels ) do
-            local smnu = submenu:AddOption( v["model"])
+            if not istable(v) or not isstring(v["model"]) then continue end
+
+            local smnu = submenu:AddOption( v["model"] )
             smnu:SetRadio( true )
             smnu:SetChecked( ent:GetModel() == v["model"] )
             smnu:SetIsCheckable( true )
