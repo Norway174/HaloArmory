@@ -5,9 +5,13 @@ HALOARMORY.MsgC("Server HALO Augmented Reality Controller Loading.")
 HALOARMORY.AR = HALOARMORY.AR or {}
 HALOARMORY.AR.IFF = HALOARMORY.AR.IFF or {}
 
+local IFF_SERVER_DISABLE = CreateConVar("haloarmory_iff_server_disable", "0", FCVAR_ARCHIVE)
+
 util.AddNetworkString("HALOARMORY.AR.IFF")
 
 function HALOARMORY.AR.IFF.SendTargets()
+
+	if IFF_SERVER_DISABLE:GetBool() then return end
 
 	local Targets = {}
 
