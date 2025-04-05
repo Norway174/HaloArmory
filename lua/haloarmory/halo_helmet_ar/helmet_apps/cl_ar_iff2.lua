@@ -21,7 +21,6 @@ local IFF2_Prop = Color( 255, 225, 142)
 --	HALOARMORY.AR.IFF2.DrawIFF2()
 --end)
 
-hook.Add("PreDrawHalos", ARIFF2_HOOK, HALOARMORY.AR.IFF2.DrawIFF2)
 
 function HALOARMORY.AR.IFF2.DrawIFF2()
 	if !HALOARMORY.AR.IFF2.IFFenabled then return end
@@ -49,6 +48,8 @@ function HALOARMORY.AR.IFF2.DrawIFF2()
 	halo.Add( Outline_Ents, IFF_Foe, 2, 2, 1, true, false )
 		
 end
+hook.Add("PreDrawHalos", ARIFF2_HOOK, HALOARMORY.AR.IFF2.DrawIFF2)
+
 
 function HALOARMORY.AR.IFF2.ToggleIFF2()
 	-- if hook.GetTable()["HUDPaint"][ARIFF2_HOOK] then
