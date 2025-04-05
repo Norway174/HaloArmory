@@ -6,7 +6,6 @@ if SERVER then resource.AddWorkshop( "2851837932" ) end
 
 local loadFolders = {
     "haloarmory/libraries", -- Libraries modules.
-    --"haloarmory/character_manager", -- In active dev. Do not enable.
     "haloarmory/halo_armory", -- Adds the armory.
     "haloarmory/halo_helmet_ar", -- Adds the Augmented Reality Helmet system.
     "haloarmory/halo_interface", -- Core files for various 3D3D UI elements.
