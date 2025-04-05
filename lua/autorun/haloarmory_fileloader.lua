@@ -16,7 +16,6 @@ local loadFolders = {
     "haloarmory/halo_logistics", -- Adds a logistics system for genering and using supplies.
     "haloarmory/halo_requisition", -- Adds a requisition system for aquiaring vehicles, using supplies.
     "haloarmory/halo_npcs", -- Experimental NPCs.
-    --"haloarmory/vehicle_pickup", -- Adds the ability to pick up vehicles/items and supplies, with Pelicans or other vehicles.
     "haloarmory/vehicle_pickup2", -- Adds the ability to pick up vehicles/items and supplies, with Pelicans or other vehicles.
     --"haloarmory/halo_redux", -- Used for the infmap. Experimental. Speeds up Pelicans flights.
     "haloarmory/halo_computer", -- Adds a computer system with emails.
