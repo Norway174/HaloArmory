@@ -113,19 +113,33 @@ function HALOARMORY.LoadAllFiles()
 
 end
 
+function HALOARMORY.LoadCAMI()
+    HALOARMORY.MsgC("Loading CAMI Permissions")
+
+    if not CAMI then
+        HALOARMORY.MsgC("CAMI not found, skipping CAMI Permissions")
+        return
+    end
+    
+    // Register Vehicle Editor
+    CAMI.RegisterPrivilege({
+        Name = "HALOARMORY.Vehicle Editor",
+        MinAccess = "admin",
+        Description = "Let's the user edit vehicles.",
+    })
+
+
+
+    HALOARMORY.MsgC("Successfully loaded CAMI Permissions")
+end
+
 HALOARMORY.MsgC(Color(0,100,255), "---- HALO ARMORY LOADING ----")
 HALOARMORY.LoadAllFonts()
 HALOARMORY.LoadAllFiles()
+HALOARMORY.LoadCAMI()
 HALOARMORY.MsgC(Color(0,100,255), "---- HALO ARMORY END ----")
 
 if SERVER then
-    hook.Add( "InitPostEntity", "HaloArmory.ULXIntegration", function()
-        if not ULib then HALOARMORY.MsgC( "HaloArmory ULX integration failed, no ULib." ) return end
-
-        ULib.ucl.registerAccess("Vehicle Editor", "admin", "Let's the user edit vehicles.", "HALOARMORY")
-
-        HALOARMORY.MsgC( "HaloArmory ULX integration completed." )
-    end )
 
     if PermaProps then
         local function AddPermaPropsSupport()

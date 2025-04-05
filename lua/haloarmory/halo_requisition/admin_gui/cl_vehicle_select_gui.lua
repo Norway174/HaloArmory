@@ -1325,11 +1325,8 @@ end
 
 function HALOARMORY.VEHICLES.ADMIN_GUI.OpenGUI( VehicleList )
 
-    if ULib and not ULib.ucl.query( LocalPlayer(), "Vehicle Editor" ) then
+    if not CAMI.PlayerHasAccess( LocalPlayer(), "HALOARMORY.Vehicle Editor" ) then
         chat.AddText( Color( 255, 0, 0 ), "You do not have access to this command!" )
-        return "No Access!"
-    elseif not ULib and not LocalPlayer():IsAdmin() then
-        chat.AddText( Color( 255, 0, 0 ), "You do have access to this command!" )
         return "No Access!"
     end
 
