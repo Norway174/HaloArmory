@@ -73,7 +73,7 @@ ENT.ScreenModels = {
             self:SetSubMaterial(0, "model_color")
             self:SetSubMaterial(2, "null")
         end,
-        ["pos"] = Vector(-2.4, 131.8, 81),
+        ["pos"] = Vector(-1.0, 131.8, 79),
         ["ang"] = Angle(0, -90, 90),
         ["scale"] = .279,
         ["frameW"] = 946,
@@ -293,7 +293,7 @@ properties.Add( "set_screen_model", {
     MenuLabel = "Set Screen Model", -- Name to display on the context menu
     Order = -100, -- The order to display this property relative to other properties
     MenuIcon = "icon16/computer_edit.png", -- The icon to display next to the property
-    PrependSpacer = false,
+    PrependSpacer = true,
 
     Filter = function( self, ent, ply ) -- A function that determines whether an entity is valid for this property
         if ( !IsValid( ent ) ) then return false end
