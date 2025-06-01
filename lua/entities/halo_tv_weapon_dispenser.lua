@@ -27,6 +27,12 @@ function ENT:SetupDataTables()
             self["SetAmmoSec" .. i](self, 0)
         end
     end
+
+    if CLIENT then
+        for i = 1, 4 do
+            self:NetworkVarNotify("WeaponClass" .. i, self.WeaponClassChanged)
+        end
+    end
 end
 
 if SERVER then
@@ -51,8 +57,9 @@ if SERVER then
                 ply:SwitchToDefaultWeapon()
             end
             ply:StripWeapon(weapon_class)
-            --ply:ChatPrint("You have dropped " .. weapons.Get(weapon_class).PrintName)
-            ply:SendLua("notification.AddLegacy('You have dropped " .. weapons.Get(weapon_class).PrintName .. "', NOTIFY_ERROR, 5)")
+
+            local name = ply:GetWeapon( weapon_class ).PrintName or weapon_class
+            ply:SendLua("notification.AddLegacy('You have dropped " .. name .. "', NOTIFY_ERROR, 5)")
 
         else
             local ammo_pri = ent["GetAmmoPri" .. weapon_index](ent)
@@ -60,8 +67,8 @@ if SERVER then
             ply:Give(weapon_class)
             ply:SelectWeapon(weapon_class)
 
-            --ply:ChatPrint("You have received " .. weapons.Get(weapon_class).PrintName)
-            ply:SendLua("notification.AddLegacy('You have received " .. weapons.Get(weapon_class).PrintName .. "', NOTIFY_GENERIC, 5)")
+            local name = ply:GetWeapon( weapon_class ).PrintName or weapon_class
+            ply:SendLua("notification.AddLegacy('You have received " .. name .. "', NOTIFY_GENERIC, 5)")
 
             if ammo_pri > 0 then
                 ply:GiveAmmo(ammo_pri, weapons.Get(weapon_class).Primary.Ammo)
@@ -79,35 +86,79 @@ if CLIENT then
         -- Future client-side functionality goes here.
     end
 
+    ENT.weapon_cache = {}
+
+    function ENT:WeaponClassChanged(varName, old, new)
+        -- Clear the cache for this weapon slot
+        local slot = 0
+        for i = 1, 4 do
+            if self["GetWeaponClass" .. i](self) == old then
+                slot = i
+                break
+            end
+        end
+        self.weapon_cache[slot] = nil
+
+        -- Cache the new weapon data
+        if new and new ~= "" then
+            local weapon_table = weapons.Get(new)
+            if weapon_table then
+                self.weapon_cache[slot] = {
+                    class = new,
+                    printname = weapon_table.PrintName or "Unknown Weapon",
+                    material = nil -- Will be set when needed
+                }
+            elseif file.Exists("scripts/weapons/" .. new .. ".txt", "GAME") then
+                local wep_file = file.Read("scripts/weapons/" .. new .. ".txt", "GAME")
+                local printname = string.match(wep_file, '"printname"		"(.-)"')
+                
+                if printname then
+                    self.weapon_cache[slot] = {
+                        class = new,
+                        printname = printname,
+                        material = nil -- Will be set when needed
+                    }
+                end
+            end
+        end
+    end
+
     local placeHolderMat = Material("weapons/swep")
 
-    function ENT:DrawWeaponInfo(x, y, weapon_class)
-        local weapon_table = weapons.Get(weapon_class)
-        if not weapon_table then return end
+    function ENT:DrawWeaponInfo(x, y, weapon_data)
+        if not weapon_data then return end
 
-        local weapon_name = weapon_table.PrintName or "Unknown Weapon"
         local boxW, boxH = 250, 200
         local boxX, boxY = x - boxW / 2, y - boxH / 2
         
         surface.SetDrawColor(50, 50, 50, 200)
         surface.DrawRect(boxX, boxY, boxW, boxH)
 
-        // Get the weapon's icon
-        local icon = weapon_table.Icon
-        if icon then
-            local iconW, iconH = 128, 128
-            local iconX, iconY = x - iconW / 2, boxY + 50
-            surface.SetDrawColor(255, 255, 255)
-            surface.SetMaterial(icon)
-            surface.DrawTexturedRect(iconX, iconY, iconW, iconH)
-        else 
-            // Use "weapons/swep" as a placeholder
-            local iconW, iconH = 128, 128
-            local iconX, iconY = x - iconW / 2, boxY + 50
-            surface.SetDrawColor(255, 255, 255)
-            surface.SetMaterial(placeHolderMat)
-            surface.DrawTexturedRect(iconX, iconY, iconW, iconH)
+        // Draw a slightly different colored box if the player has the weapon
+        if LocalPlayer():HasWeapon(weapon_data.class) then
+            surface.SetDrawColor(22, 68, 22)
+            surface.DrawRect(boxX, boxY, boxW, boxH)
         end
+
+
+        // Get the weapon's icon
+        if not weapon_data.material then
+            local path = "entities/" .. weapon_data.class .. ".png"
+            if file.Exists("materials/" .. path, "GAME") then
+                weapon_data.material = Material(path)
+            elseif weapons.Get(weapon_data.class) and weapons.Get(weapon_data.class).Icon then
+                weapon_data.material = Material(weapons.Get(weapon_data.class).Icon)
+            else
+                weapon_data.material = placeHolderMat
+            end
+        end
+
+        // Use "weapons/swep" as a placeholder
+        local iconW, iconH = 128, 128
+        local iconX, iconY = x - iconW / 2, boxY + 50
+        surface.SetDrawColor(255, 255, 255)
+        surface.SetMaterial(weapon_data.material)
+        surface.DrawTexturedRect(iconX, iconY, iconW, iconH)
 
         // Hovering & Clicking
         if ui3d2d.isHovering(boxX, boxY, boxW, boxH) then --Check if the box is being hovered
@@ -118,7 +169,7 @@ if CLIENT then
                 // Don't send the weapon class, instead, send the index of the weapon
                 local weapon_index = 0
                 for i = 1, 4 do
-                    if self["GetWeaponClass" .. i](self) == weapon_class then
+                    if self["GetWeaponClass" .. i](self) == weapon_data.class then
                         weapon_index = i
                         break
                     end
@@ -132,7 +183,7 @@ if CLIENT then
         end
         
         // Draw the title
-        draw.SimpleText(weapon_name, "HudHintTextLarge", x, boxY + 20, Color(255, 255, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
+        draw.SimpleText(weapon_data.printname, "HudHintTextLarge", x, boxY + 20, Color(255, 255, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
     end
 
     function ENT:DrawScreen()
@@ -144,15 +195,6 @@ if CLIENT then
         surface.SetDrawColor(Color(255, 255, 255, 42))
         surface.DrawRect(20, 100, self.frameW - 40, 2)
 
-        local weaponAmounts, weaponClasses = 0, {}
-        for i = 1, 4 do
-            local weapon_class = self["GetWeaponClass" .. i](self)
-            if weapons.Get(weapon_class) then
-                weaponAmounts = weaponAmounts + 1
-                table.insert(weaponClasses, weapon_class)
-            end
-        end
-
         local positions = {
             [1] = { {0.5, 0.5} },
             [2] = { {0.35, 0.5}, {0.65, 0.5} },
@@ -160,17 +202,16 @@ if CLIENT then
             [4] = { {0.35, 0.35}, {0.65, 0.35}, {0.35, 0.72}, {0.65, 0.72} }
         }
 
-        for i, pos in ipairs(positions[weaponAmounts] or {}) do
-            self:DrawWeaponInfo(self.frameW * pos[1], self.frameH * pos[2], weaponClasses[i])
+        for i, pos in ipairs(positions[table.Count(self.weapon_cache)] or {}) do
+            self:DrawWeaponInfo(self.frameW * pos[1], self.frameH * pos[2], self.weapon_cache[i])
         end
 
-        if weaponAmounts == 0 then
+        if table.Count(self.weapon_cache) == 0 then
             draw.SimpleText("// OFFLINE //", "SP_QuanticoHeader", self.frameW * 0.5, self.frameH * 0.5, Color(107, 0, 0), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 
             if LocalPlayer():IsAdmin() then
                 draw.SimpleText("This weapon dispenser is unconfigured. Edit it's properties to configure", "HudHintTextLarge", self.frameW * 0.5, self.frameH * 0.9, Color(109, 109, 109), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
             end
-
         end
     end
 end
