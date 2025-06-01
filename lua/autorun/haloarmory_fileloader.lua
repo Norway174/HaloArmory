@@ -254,6 +254,49 @@ concommand.Add("check_nwvars_datatables", function(ply, cmd, args)
 end)
 
 
+-- Define the custom console command
+concommand.Add("check_tables", function(ply, cmd, args)
+    -- Perform a trace from the player's view
+    local tr = util.TraceLine({
+        start = ply:EyePos(),
+        endpos = ply:EyePos() + ply:GetAimVector() * 5000,  -- Trace for 5000 units
+        filter = ply  -- Ignore the player themselves
+    })
+    
+    -- Check if we hit something
+    if tr.Hit and IsValid(tr.Entity) then
+        local entityHit = tr.Entity  -- Get the Entity that was hit
+        print("Hit Entity:", entityHit)
+
+        -- Gather and print all Engine Save Tables on the Entity
+        if isfunction(entityHit.GetSaveTable) then
+            print("\n--- Engine Save Tables ---")
+
+            local engineTable = entityHit.GetSaveTable( entityHit, false )
+            if istable(engineTable) then
+                PrintTable(engineTable)
+            else
+                print("No engine table found for this Entity.")
+            end
+        end
+
+        -- Gather and print all Lua Tables on the Entity
+        print("\n--- LUA Table ---")
+        
+        local tabl = entityHit.GetTable()
+        if istable(tabl) then
+            PrintTable(tabl)
+        else 
+            print("No table found for this Entity > ", tabl)
+        end
+
+
+    else
+        print("No Entity was hit.")
+    end
+end)
+
+
 
 // Remove all VGUI elements
 if CLIENT then
