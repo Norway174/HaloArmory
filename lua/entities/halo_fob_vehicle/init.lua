@@ -15,6 +15,9 @@ end
 
 
 function ENT:Undeploy()
+    // Get and validate the Simfphys vehicle
+    local VehEnt = self:GetSimfphysVehicle()
+    if not VehEnt then return end
 
     if self.Vehicle and IsValid( self.Vehicle ) then
         self.Vehicle:Remove()
@@ -28,8 +31,7 @@ function ENT:Undeploy()
     local pos = isvector(self.OriginalPos) and self.OriginalPos or self:GetPos()
     local ang = isangle(self.OriginalAng) and self.OriginalAng or self:GetAngles()
 
-    // Create a simphys vehicle
-    self.Vehicle = simfphys.SpawnVehicleSimple( self.VehicleEnt, pos + Vector( 0,0,20 ), ang ) -- [Simfphys] Halo 5
+    self.Vehicle = simfphys.SpawnVehicleSimple( VehEnt, pos + Vector( 0,0,20 ), ang )
 
     self:DeleteOnRemove( self.Vehicle )
 
