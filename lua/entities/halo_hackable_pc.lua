@@ -3,7 +3,7 @@ AddCSLuaFile()
 ENT.Type = "anim"
 ENT.Base = "halo_pc_base"
  
-ENT.PrintName = "Hackable Control Panel"
+ENT.PrintName = "PC Base [HACKABLE]"
 ENT.Category = "HALOARMORY - UNSC"
 ENT.Author = "Norway174"
 ENT.Spawnable = true
