@@ -139,3 +139,21 @@ surface.CreateFont( "HK_QuanticoHeader", {
     weight = 400,
     antialias = false,
 } )
+surface.CreateFont( "HK_QuanticoSubHeader", {
+    font = "Quantico",
+    size = 110,
+    weight = 400,
+    antialias = false,
+} )
+surface.CreateFont( "HK_GUI_QuanticoHeader", {
+    font = "Teko",
+    size = 28,
+    --weight = 100,
+    antialias = true,
+} )
+surface.CreateFont( "HK_GUI_QuanticoLabel", {
+    font = "Teko",
+    size = 40,
+    --weight = 100,
+    antialias = true,
+} )
