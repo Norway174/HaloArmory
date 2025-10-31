@@ -65,6 +65,12 @@ function ENT:SetupDataTables()
         self:SetCurrentGuess( "" )
     end
 
+    // Only One Attempt - Make it explode on failure
+    self:NetworkVar( "Bool", 3, "OnlyOneAttempt", { KeyName = "OnlyOneAttempt",	Edit = { type = "Bool", order = 7 } } )
+    if SERVER then
+        self:SetOnlyOneAttempt( false )
+    end
+
     // NOTIFY
     if SERVER then
         // Set new password if lenght changed
@@ -127,9 +133,25 @@ if SERVER then
 
             if self:GetGuesses() >= self:GetMaxGuesses() then
                 self:SetScreenWindow( "LockedOut" )
-                timer.Simple(6, function()
-                    self:SetScreenWindow( "Standby" )
-                end)
+                
+                // Make it explode. Optional feature to be implemented.
+                if self:GetOnlyOneAttempt() then
+                    local explosion = ents.Create( "env_explosion" ) -- The explosion entity
+                    explosion:SetPos( self:GetPos() ) -- Put the position of the explosion at the position of the entity
+                    explosion:Spawn() -- Spawn the explosion
+                    explosion:SetKeyValue( "iMagnitude", "100" ) -- the magnitude of the explosion
+                    explosion:Fire( "Explode", 200, 0 ) -- explode
+
+                    timer.Simple(0.1, function()
+                        self:Remove()
+                    end)
+
+                else
+                    timer.Simple(6, function()
+                        self:SetScreenWindow( "Standby" )
+                    end)
+
+                end
             end
         end
     end
