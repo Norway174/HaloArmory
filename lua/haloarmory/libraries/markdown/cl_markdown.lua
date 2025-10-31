@@ -1009,10 +1009,11 @@ HALOARMORY.Markdown.HTMLHeader = [[
 		<title>Title of the document</title>
 		<style>
 		body {
-			background-color: white;
+			background-color: #2D2D2D;
 			font-family: Arial;
 			margin: 0;
 			padding: 0;
+         color: #FFFFFF;
 		}
 
 		h1 {
@@ -1034,8 +1035,8 @@ HALOARMORY.Markdown.HTMLHeader = [[
   position: absolute;
   bottom: 20px;
   right: 20px;
-  background-color: black;
-  color: white;
+  background-color: #2D2D2D;
+  color: #FFFFFF;
   padding-left: 20px;
   padding-right: 20px;
 }
