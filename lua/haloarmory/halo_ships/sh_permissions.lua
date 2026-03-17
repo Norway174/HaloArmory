@@ -15,7 +15,7 @@ local function ShipTool( ply, trace, tool )
     if not tool.HALOARMORY_ShipAttacher then return end
     if IsValid(trace.Entity) and trace.Entity.HALOARMORY_Ships_Presets then return true end
 end
-hook.Add( "CanTool", "!!!HALOARMORY.ShipTool", ShipTool )
+hook.Add( "CanTool", "!!!!!HALOARMORY.ShipTool", ShipTool )
 
 
 // Prevent the Ships from being picked up! 
