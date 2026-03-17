@@ -52,6 +52,7 @@ function TOOL:Think()
 end
 
 function TOOL:LeftClick( trace )
+    if !IsFirstTimePredicted() then return end
     if not IsValid(trace.Entity) then return end
 
     if trace.Entity == self:GetEnt( 1 ) then
@@ -134,6 +135,7 @@ function TOOL:LeftClick( trace )
 end
 
 function TOOL:RightClick( trace )
+    if !IsFirstTimePredicted() then return end
     if not IsValid(trace.Entity) then return end
 
     if trace.Entity == self:GetEnt( 1 ) then
@@ -217,9 +219,12 @@ function TOOL:RightClick( trace )
 end
 
 function TOOL:Reload( trace )
+    if !IsFirstTimePredicted() then return end
+
     if not IsValid(trace.Entity) then return end
     local ent = trace.Entity
 
+    print("Reloading ship attacher tool. Ent:", ent, ent.HALOARMORY_Ships_Presets)
     if ent.HALOARMORY_Ships_Presets then
         // Set the "ship" convar
         --print("Ship selected", ent)
