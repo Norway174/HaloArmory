@@ -55,6 +55,23 @@ function HALOARMORY.MsgC( ... )
     MsgC(unpack(message_table))
 end
 
+function HALOARMORY.GetOwnScriptPath()
+    local info = debug.getinfo(2)
+    local src = info.source -- e.g., "@addons/haloarmory/lua/haloarmory/halo_computer/cl_computer_interface.lua"
+    if src:sub(1,1) == "@" then src = src:sub(2) end
+
+    local parts = string.Explode("/", src)
+    -- Remove last entry (filename)
+    table.remove(parts, #parts)
+    -- Remove the first three entries
+    for i = 1,3 do
+        table.remove(parts, 1)
+    end
+    -- Merge the rest into path
+    local luaDir = table.concat(parts, "/")
+    return luaDir .. "/"
+end
+
 function HALOARMORY.LoadAllFile(fileDir)
     local files, dirs = file.Find(fileDir .. "*", "LUA")
     
