@@ -39,7 +39,7 @@ ENT.DeviceModelAlts = {
     -- Halo UNSC Prop Pack - Halo Reach
     ["models/valk/haloreach/unsc/props/crate/crate_packing.mdl"] = true,
     -- Halo UNSC Prop Pack Redux - Halo 2A
-    ["models/valk/halo2a/unsc/props/military/crate_packing.mdl"] = true,
+    --["models/valk/halo2a/unsc/props/military/crate_packing.mdl"] = true,
     -- Halo UNSC Prop Pack Redux - Halo 3
     ["models/valk/halo3/unsc/props/industrial/box_wooden_small_b.mdl"] = true,
     ["models/valk/halo3/unsc/props/industrial/crate_multi_single.mdl"] = true,

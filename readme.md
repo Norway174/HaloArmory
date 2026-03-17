@@ -39,7 +39,6 @@ You can subscribe to the addon here: [HaloArmory Workshop](https://steamcommunit
 * [Halo UNSC Prop Pack - Halo 3 ODST](https://steamcommunity.com/workshop/filedetails/?id=1832181569)
 * [Halo UNSC Prop Pack - Halo 4](https://steamcommunity.com/workshop/filedetails/?id=1810304039)
 * [Halo UNSC Prop Pack - Halo Reach](https://steamcommunity.com/workshop/filedetails/?id=1810305449)
-* [UNSC Prop Pack Redux - Halo 2A](https://steamcommunity.com/workshop/filedetails/?id=2847852497)
 * [UNSC Prop Pack Redux - Halo 3](https://steamcommunity.com/workshop/filedetails/?id=2814515573)
 * [UNSC Prop Pack Redux - Halo Reach](https://steamcommunity.com/workshop/filedetails/?id=2978964446)
 * [Halo - Covenant Props & Entities](https://steamcommunity.com/workshop/filedetails/?id=2896859937)

@@ -15,21 +15,22 @@ ENT.DeviceName = "Cargo Node"
 ENT.DeviceType = "cargo_access"
 ENT.RateM = 0 // Positive number to add resources, negative to take away, 0 to disable. Resources are updated every minute.
 
-ENT.DeviceModel = "models/valk/halo2a/unsc/props/military/crate_packing_pallet.mdl"
+ENT.DeviceModel = "models/valk/haloreach/unsc/props/military/crate_packing_large_pallet.mdl" -- UNSC Prop Pack Redux - Halo Reach (2978964446)
 function ENT:SetupModel()
 end
 
-ENT.PanelPos = Vector(19.5, 20.5, 17.5)
-ENT.PanelAng = Angle(0, -90, 0)
 ENT.PanelScale = .0664
+ENT.SidePanelOffset = -1.9
+ENT.SidePanelHeight = 0.777
 
-ENT.frameW, ENT.frameH = 616, 585
+ENT.frameW, ENT.frameH = 800, 100
 
 
 ENT.Theme = {
-    ["background"] = "vgui/character_creator/unsc_logo_black.png",
+    ["background"] = "",
     ["colors"] = {
-        ["background_color"] = Color( 29, 29, 29),
+        ["background_color"] = Color( 32, 32, 32, 0),
+        ["background_logo_color"] = Color( 255, 255, 255),
         ["text_color"] = Color( 255, 255, 255 ),
         ["buttons_default"] = {
             ["btn_normal"] = Color(16, 51, 102, 128),
