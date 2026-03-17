@@ -374,6 +374,19 @@ HALOARMORY.Vehicles.allowedVehicles = {
         ["pos"] = Vector(0, 0, 50),
         ["rad"] = 100,
     },
+    // Halo - Custom
+    ["lvs_halo_warthog"] = {
+        ["pos"] = Vector(-65, 0, 70),
+        ["rad"] = 30,
+    },
+    ["lvs_halo_lehto_warthog"] = {
+        ["pos"] = Vector(-65, 0, 30),
+        ["rad"] = 30,
+    },
+    ["lvs_halo_spade"] = {
+        ["pos"] = Vector(-70, 0, 60),
+        ["rad"] = 40,
+    },
 }
 
 HALOARMORY.Vehicles.allowedObjectsToLoad = {
@@ -565,6 +578,25 @@ HALOARMORY.Vehicles.allowedObjectsToLoad = {
     ["halo_mantis_mkix_insurgent"] = true,
     ["halo_mantis_mkix_oni"] = true,
     ["halo_mantis_mkix_camo_tundra"] = true,
+    //Halo - Custom
+    ["lvs_halo_lehto_warthog"] = true,
+    ["lvs_halo_lehto_warthog_chain"] = true,
+    ["lvs_halo_mongoose"] = true,
+    ["lvs_halo_mongoose_reach"] = true,
+    ["lvs_halo_scorpion"] = true,
+    ["lvs_halo_spade"] = true,
+    ["lvs_halo_warthog"] = true,
+    ["lvs_halo_warthog_troop"] = true,
+    ["lvs_halo_warthog_chain"] = true,
+    ["lvs_halo_warthog_gauss"] = true,
+    //Halo - Custom - Toybox
+    ["lvs_halo_toybox_warthog_kart"] = true,
+    ["lvs_halo_toybox_fortnite_kart"] = true,
+    ["lvs_halo_toybox_fortnite_kart_goofy"] = true,
+    ["lvs_halo_toybox_fortnite_kart_dmc"] = true,
+    ["lvs_halo_toybox_fortnite_kart_sm64"] = true,
+    ["lvs_halo_toybox_fortnite_kart_mgrr"] = true,
+
 }
 
 --[[ 
