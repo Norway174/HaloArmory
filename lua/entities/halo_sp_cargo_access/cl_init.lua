@@ -85,7 +85,7 @@ function ENT:DrawPanel()
         self.Theme["background"] = Material( self.Theme["background"], "smooth" )
     end
 
-    if !self.Theme["background"]:IsError() then
+    if !isstring(self.Theme["background"]) and !self.Theme["background"]:IsError() then
         surface.SetMaterial( self.Theme["background"] )
         surface.SetDrawColor( self.Theme["colors"]["background_logo_color"] )
 

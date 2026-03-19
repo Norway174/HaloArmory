@@ -27,7 +27,7 @@ ENT.frameW, ENT.frameH = 800, 100
 
 
 ENT.Theme = {
-    ["background"] = "",
+    ["background"] = "ds",
     ["colors"] = {
         ["background_color"] = Color( 32, 32, 32, 0),
         ["background_logo_color"] = Color( 255, 255, 255),
