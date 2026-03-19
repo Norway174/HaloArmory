@@ -6,6 +6,11 @@ HALOARMORY.COMPUTER = HALOARMORY.COMPUTER or {}
 // Save locations
 HALOARMORY.COMPUTER.Directory = "haloarmory/computer/"
 
+// Email
+HALOARMORY.COMPUTER.EMAIL_Conf = {}
+HALOARMORY.COMPUTER.EMAIL_Conf.MaxEmails = 500 // How many Emails to keep per player
+HALOARMORY.COMPUTER.EMAIL_Conf.DeleteTrashDays = 30 // Delete trash Emails after X amount of days
+
 if SERVER then
 	// Emails are server only
     HALOARMORY.COMPUTER.Directory_Emails = HALOARMORY.COMPUTER.Directory .. "emails/{steam_id}/"

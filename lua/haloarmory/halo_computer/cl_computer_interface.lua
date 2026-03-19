@@ -313,6 +313,13 @@ function PANEL:Init()
 		end
 	end)
 
+	// Add email bridge request function
+	self.html:AddFunction("email", "request", function(callbackId, action, payloadJson)
+		if HALOARMORY.COMPUTER.INTERFACE.EMAIL and HALOARMORY.COMPUTER.INTERFACE.EMAIL.HandleUIRequest then
+			HALOARMORY.COMPUTER.INTERFACE.EMAIL.HandleUIRequest(callbackId, action, payloadJson)
+		end
+	end)
+
 	// Load and set HTML
 	local htmlContent = include(HALOARMORY.GetOwnScriptPath() .. "html/index.lua")
 
