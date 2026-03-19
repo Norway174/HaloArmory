@@ -6,7 +6,7 @@ ENT.Base = "halo_pc_base"
 ENT.PrintName = "PC Base [HACKABLE]"
 ENT.Category = "HALOARMORY - UNSC"
 ENT.Author = "Norway174"
-ENT.Spawnable = true
+ENT.Spawnable = false
 
 ENT.RenderGroup = RENDERGROUP_OPAQUE
 
