@@ -146,9 +146,9 @@ end
 
 function EMAIL.MakeToastHex(payload)
     local json = util.TableToJSON(payload or {}) or "{}"
-    return (string.gsub(json, ".", function(character)
+    return string.gsub(json, ".", function(character)
         return string.format("%02x", string.byte(character))
-    end))
+    end)
 end
 
 function EMAIL.ReadToastHex(hexValue)
@@ -157,9 +157,9 @@ function EMAIL.ReadToastHex(hexValue)
     end
 
     local success, decoded = pcall(function()
-        return (string.gsub(hexValue, "%x%x", function(hexPair)
+        return string.gsub(hexValue, "%x%x", function(hexPair)
             return string.char(tonumber(hexPair, 16))
-        end))
+        end)
     end)
 
     if not success or not decoded then
