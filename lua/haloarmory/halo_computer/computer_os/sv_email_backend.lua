@@ -140,7 +140,7 @@ end
 
 local function PurgeExpiredTrash(steamID64)
     local now = os.time()
-    local maxAge = math.max(1, tonumber(HALOARMORY.COMPUTER.EMAIL_Conf.DeleteTrashDays) or 30) * 86400
+    local maxAge = math.max(1, tonumber(HALOARMORY.COMPUTER.EMAIL.DeleteTrashDays) or 30) * 86400
     local deletedCount = 0
 
     for _, message in ipairs(ListMailboxMessages(steamID64)) do
@@ -158,7 +158,7 @@ local function EnforceMailboxLimit(steamID64, incomingCount)
     incomingCount = math.max(0, tonumber(incomingCount) or 0)
     PurgeExpiredTrash(steamID64)
 
-    local maxEmails = math.max(1, tonumber(HALOARMORY.COMPUTER.EMAIL_Conf.MaxEmails) or 500)
+    local maxEmails = math.max(1, tonumber(HALOARMORY.COMPUTER.EMAIL.MaxEmails) or 500)
     local messages = ListMailboxMessages(steamID64)
 
     table.sort(messages, SortBySentAscending)
@@ -726,7 +726,7 @@ hook.Add("PlayerInitialSpawn", "HALOARMORY.COMPUTER.EMAIL.JoinReminder", functio
     local timerName = "HALOARMORY.COMPUTER.EMAIL.JoinReminder." .. ply:SteamID64()
     timer.Remove(timerName)
 
-    timer.Create(timerName, tonumber(HALOARMORY.COMPUTER.EMAIL_Conf.JoinReminderDelay) or 120, 1, function()
+    timer.Create(timerName, tonumber(HALOARMORY.COMPUTER.EMAIL.JoinReminderDelay) or 120, 1, function()
         if not IsValid(ply) then
             return
         end

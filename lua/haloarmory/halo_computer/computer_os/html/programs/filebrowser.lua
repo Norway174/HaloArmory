@@ -459,7 +459,7 @@ function FILEBROWSER.GetCSS()
     width: 150px;
     padding: 12px;
     border-right: 1px solid var(--color-window-border, #444);
-    background: linear-gradient(180deg, var(--color-window-bg, #334055), var(--color-secondary-surface-alt, #2a3446));
+    background: var(--color-window-bg, #202020);
     display: flex;
     flex-direction: column;
     gap: 8px;

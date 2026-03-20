@@ -973,7 +973,7 @@ function NOTES.GetCSS()
     flex: 1;
     width: 100%;
     padding: 12px;
-    background: linear-gradient(180deg, var(--color-secondary-surface, #1e1e1e), var(--color-secondary-surface-alt, #252525));
+    background: var(--color-window-bg, #202020);
     color: var(--color-text-primary, #d4d4d4);
     border: none;
     font-family: 'Consolas', 'Monaco', monospace;
@@ -985,7 +985,7 @@ function NOTES.GetCSS()
 .notes-preview {
     flex: 1;
     padding: 12px;
-    background: linear-gradient(180deg, var(--color-secondary-surface, #252525), var(--color-secondary-surface-alt, #1e1e1e));
+    background: var(--color-window-bg, #202020);
     color: var(--color-text-primary, #d4d4d4);
     overflow-y: auto;
     display: none;

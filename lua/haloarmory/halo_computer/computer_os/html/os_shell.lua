@@ -271,6 +271,11 @@ function SHELL.GetCSS()
     user-select: none;
 }
 
+.os-desktop-icon:hover {
+    background: var(--color-icon-hover-bg, rgba(74, 158, 255, 0.3));
+    border-radius: var(--radius-ui-small, 4px);
+}
+
 .os-desktop-icon-image {
     font-size: 48px;
     margin-bottom: 5px;
@@ -294,7 +299,7 @@ function SHELL.GetCSS()
 }
 
 .os-desktop-icon:hover .os-item-label {
-    background: var(--color-icon-hover-bg, rgba(74, 158, 255, 0.3));
+    /*background: var(--color-icon-hover-bg, rgba(74, 158, 255, 0.3));*/
     border-radius: var(--radius-ui-small, 4px);
 }
 
@@ -395,7 +400,7 @@ function SHELL.GetCSS()
 
 .os-taskbar-program.active .os-taskbar-program-icon,
 .os-taskbar-program.active .os-taskbar-program-label {
-    color: var(--color-text-on-accent, #ffffff);
+    color: var(--color-text-primary, #ffffff);
 }
 
 .os-taskbar-tray {

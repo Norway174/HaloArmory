@@ -27,7 +27,7 @@ function STYLES.GetCSS()
 }
 
 .os-window-titlebar {
-    background: linear-gradient(180deg, var(--color-titlebar-active, #3a3a3a) 0%, var(--color-titlebar-active-bottom, var(--color-window-bg, #2d2d2d)) 100%);
+    background: linear-gradient(180deg, var(--color-titlebar-active, #3a3a3a) 0%, var(--color-titlebar-active-bottom, var(--color-window-bg, #2d2d2d)) 10%);
     color: var(--color-text-primary, #ffffff);
     padding: 6px 8px;
     display: flex;
@@ -101,7 +101,7 @@ function STYLES.GetCSS()
 }
 
 .os-window:not(.os-window-active) .os-window-titlebar {
-    background: linear-gradient(180deg, var(--color-titlebar-inactive, #2d2d2d) 0%, var(--color-window-bg, #2d2d2d) 100%);
+    background: linear-gradient(180deg, var(--color-titlebar-inactive, #2d2d2d) 0%, var(--color-window-bg, #2d2d2d) 10%);
 }
 ]]
 end

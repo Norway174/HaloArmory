@@ -19,7 +19,7 @@ TOASTS.RightMargin = 22
 TOASTS.TopMargin = 70
 TOASTS.EnterDuration = 0.22
 TOASTS.LeaveDuration = 0.22
-TOASTS.HoldDuration = tonumber(HALOARMORY.COMPUTER.EMAIL_Conf.ToastHoldSeconds) or 5
+TOASTS.HoldDuration = tonumber(HALOARMORY.COMPUTER.EMAIL.ToastHoldSeconds) or 5
 TOASTS.Sound = "friends/friend_online.wav"
 
 surface.CreateFont("HALOARMORY.Computer.EmailToast.Header", {
