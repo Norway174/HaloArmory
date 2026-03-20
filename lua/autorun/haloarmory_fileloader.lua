@@ -72,7 +72,7 @@ function HALOARMORY.GetOwnScriptPath()
     return luaDir .. "/"
 end
 
-function HALOARMORY.LoadAllFile(fileDir)
+function HALOARMORY.LoadAllFiles(fileDir)
     local files, dirs = file.Find(fileDir .. "*", "LUA")
     
     for _, subFilePath in ipairs(files) do
@@ -97,7 +97,7 @@ function HALOARMORY.LoadAllFile(fileDir)
     end
 
     for _, dir in ipairs(dirs) do
-        HALOARMORY.LoadAllFile(fileDir .. dir .. "/")
+        HALOARMORY.LoadAllFiles(fileDir .. dir .. "/")
     end
 end
 
@@ -114,13 +114,13 @@ function HALOARMORY.LoadAllFonts()
     end
 end
 
-function HALOARMORY.LoadAllFiles()
+function HALOARMORY.LoadAllFolders()
     if not istable( loadFolders ) then return end
 
     for _, f in pairs( loadFolders ) do
         f = f .. "/"
         HALOARMORY.MsgC("Loading folder: " .. f)
-        HALOARMORY.LoadAllFile(f)
+        HALOARMORY.LoadAllFiles(f)
         HALOARMORY.MsgC("Successfully loaded folder: " .. f)
     end
 
@@ -148,7 +148,7 @@ end
 
 HALOARMORY.MsgC(Color(0,100,255), "---- HALO ARMORY LOADING ----")
 HALOARMORY.LoadAllFonts()
-HALOARMORY.LoadAllFiles()
+HALOARMORY.LoadAllFolders()
 HALOARMORY.LoadCAMI()
 HALOARMORY.MsgC(Color(0,100,255), "---- HALO ARMORY END ----")
 
