@@ -136,6 +136,10 @@ window.osFileTypeRegistry = {
         if (path.endsWith('.shortcut.dat')) {
             return '.shortcut.dat';
         }
+
+        if (path.endsWith('.image.dat')) {
+            return '.image.dat';
+        }
         
         var lastDot = path.lastIndexOf('.');
         return lastDot >= 0 ? path.substring(lastDot) : '';
@@ -171,6 +175,23 @@ window.osFileTypeRegistry = {
     // .txt - Text files
     window.osFileTypeRegistry.register('.txt', function(filePath, fileData, editMode) {
         window.osShell.openProgram('notes', filePath, editMode);
+    });
+
+    // Images - Open in Paint
+    window.osFileTypeRegistry.register('.png', function(filePath, fileData, editMode) {
+        window.osShell.openProgram('paint', filePath, editMode);
+    });
+
+    window.osFileTypeRegistry.register('.jpg', function(filePath, fileData, editMode) {
+        window.osShell.openProgram('paint', filePath, editMode);
+    });
+
+    window.osFileTypeRegistry.register('.jpeg', function(filePath, fileData, editMode) {
+        window.osShell.openProgram('paint', filePath, editMode);
+    });
+
+    window.osFileTypeRegistry.register('.image.dat', function(filePath, fileData, editMode) {
+        window.osShell.openProgram('paint', filePath, editMode);
     });
     
     // config.dat - Opens settings

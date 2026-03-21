@@ -410,6 +410,9 @@ var fileBrowserApp = {
         });
         html += '</div>';
         content.innerHTML = html;
+        if (window.osFileItemRenderer && window.osFileItemRenderer.hydrateImagePreviews) {
+            window.osFileItemRenderer.hydrateImagePreviews(content);
+        }
     },
 
     refresh: function(windowId) {
@@ -422,6 +425,9 @@ var fileBrowserApp = {
 
     refreshPath: function(path) {
         var normalized = this.normalizeFolderPath(path);
+        if (window.osFileItemRenderer && window.osFileItemRenderer.invalidatePreviewCache) {
+            window.osFileItemRenderer.invalidatePreviewCache(normalized);
+        }
         Object.keys(this.instances).forEach(function(windowId) {
             var instance = fileBrowserApp.getInstance(windowId);
             if (instance && fileBrowserApp.normalizeFolderPath(instance.currentPath) === normalized) {
@@ -459,7 +465,7 @@ function FILEBROWSER.GetCSS()
     width: 150px;
     padding: 12px;
     border-right: 1px solid var(--color-window-border, #444);
-    background: var(--color-window-bg, #202020);
+    background: var(--color-sidebar-bg, #202020);
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -529,7 +535,7 @@ function FILEBROWSER.GetCSS()
     padding: 8px 10px;
     border: 1px solid var(--color-window-border, #444);
     border-radius: var(--radius-ui-small, 4px);
-    background: var(--color-secondary-surface-alt, #1f1f1f);
+    background: var(--color-input-bg, #1f1f1f);
     color: var(--color-text-primary, #fff);
 }
 
@@ -550,8 +556,18 @@ function FILEBROWSER.GetCSS()
 
 .filebrowser-file-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, 100px);
+    grid-template-columns: repeat(auto-fill, 80px);
+    grid-auto-rows: 90px;
     gap: 16px;
+}
+
+.filebrowser-item:hover {
+    background: var(--color-icon-hover-bg, rgba(74, 158, 255, 0.3));
+    border-radius: var(--radius-ui-small, 4px);
+}
+
+.filebrowser-item:hover .os-item-label {
+    border-radius: var(--radius-ui-small, 4px);
 }
 
 .filebrowser-loading,

@@ -56,6 +56,7 @@ local function ReadMessageByPath(path)
     payload.sentAt = tonumber(payload.sentAt) or os.time()
     payload.read = payload.read == true
     payload.deleted = payload.deleted == true
+    payload.messageKey = string.Trim(tostring(payload.messageKey or payload.id or ""))
     payload.mailboxRoles = istable(payload.mailboxRoles) and payload.mailboxRoles or {}
     payload.mailboxRoles.sender = payload.mailboxRoles.sender == true
     payload.mailboxRoles.recipient = payload.mailboxRoles.recipient == true
@@ -283,6 +284,71 @@ local function CountUnreadForPlayer(steamID64)
     return unread
 end
 
+local function GetMailboxStorageStats(steamID64)
+    local used = #ListMailboxMessages(steamID64)
+    local limit = math.max(1, tonumber(HALOARMORY.COMPUTER.EMAIL.MaxEmails) or 500)
+    return used, limit
+end
+
+local function MessageIncludesRecipient(messageData, steamID64)
+    if not istable(messageData) or not istable(messageData.recipients) then
+        return false
+    end
+
+    for _, recipient in ipairs(messageData.recipients) do
+        if EMAIL.NormalizeSteamID64(recipient and (recipient.steamID64 or recipient.steamID)) == steamID64 then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function IsSelfMailboxMessage(messageData, steamID64)
+    if not istable(messageData) then
+        return false
+    end
+
+    local senderSteamID64 = EMAIL.NormalizeSteamID64(messageData.sender and (messageData.sender.steamID64 or messageData.sender.steamID))
+    return senderSteamID64 == steamID64 and MessageIncludesRecipient(messageData, steamID64)
+end
+
+local function MessagesShareLogicalIdentity(steamID64, messageData, otherData)
+    if not istable(messageData) or not istable(otherData) then
+        return false
+    end
+
+    local messageKey = string.Trim(tostring(messageData.messageKey or ""))
+    local otherMessageKey = string.Trim(tostring(otherData.messageKey or ""))
+    if messageKey ~= "" and otherMessageKey ~= "" then
+        return messageKey == otherMessageKey
+    end
+
+    if not IsSelfMailboxMessage(messageData, steamID64) or not IsSelfMailboxMessage(otherData, steamID64) then
+        return false
+    end
+
+    local senderSteamID64 = EMAIL.NormalizeSteamID64(messageData.sender and (messageData.sender.steamID64 or messageData.sender.steamID))
+    local otherSenderSteamID64 = EMAIL.NormalizeSteamID64(otherData.sender and (otherData.sender.steamID64 or otherData.sender.steamID))
+
+    return senderSteamID64 == otherSenderSteamID64
+        and tostring(messageData.subject or "") == tostring(otherData.subject or "")
+        and tostring(messageData.bodyMarkdown or "") == tostring(otherData.bodyMarkdown or "")
+        and tonumber(messageData.sentAt or 0) == tonumber(otherData.sentAt or 0)
+end
+
+local function CollectLinkedMailboxMessages(steamID64, messageData)
+    local linked = {}
+
+    for _, message in ipairs(ListMailboxMessages(steamID64)) do
+        if MessagesShareLogicalIdentity(steamID64, messageData, message.data) then
+            table.insert(linked, message)
+        end
+    end
+
+    return linked
+end
+
 local function MessageMatchesFolder(messageData, folder)
     folder = string.lower(tostring(folder or "inbox"))
 
@@ -383,8 +449,7 @@ local function NormalizeAttachment(rawAttachment)
         displayName = displayName,
         filename = displayName,
         filetype = fileType,
-        content = content,
-        sourcePath = tostring(rawAttachment.sourcePath or rawAttachment.filepath or "")
+        content = content
     }
 end
 
@@ -443,12 +508,15 @@ local function HandleMailboxIndexRequest(ply, requestId, payload)
     local steamID64 = ply:SteamID64()
     local folder = payload.folder or "inbox"
     local summaries = ListFolderSummaries(steamID64, folder)
+    local storageUsed, storageLimit = GetMailboxStorageStats(steamID64)
 
     DispatchResponse(ply, requestId, {
         success = true,
         folder = folder,
         messages = summaries,
-        unreadCount = CountUnreadForPlayer(steamID64)
+        unreadCount = CountUnreadForPlayer(steamID64),
+        storageUsed = storageUsed,
+        storageLimit = storageLimit
     })
 end
 
@@ -465,13 +533,30 @@ local function HandleEmailDetailRequest(ply, requestId, payload)
     end
 
     if messageData.mailboxRoles.recipient and not messageData.read then
+        local linkedMessages = CollectLinkedMailboxMessages(ply:SteamID64(), messageData)
+        if #linkedMessages <= 0 then
+            linkedMessages = {
+                {
+                    id = messageId,
+                    data = messageData
+                }
+            }
+        end
+
+        for _, linkedMessage in ipairs(linkedMessages) do
+            if linkedMessage.data.mailboxRoles.recipient and not linkedMessage.data.read then
+                linkedMessage.data.read = true
+                WriteMessageForPlayer(ply:SteamID64(), linkedMessage.data)
+            end
+        end
+
         messageData.read = true
-        WriteMessageForPlayer(ply:SteamID64(), messageData)
     end
 
     DispatchResponse(ply, requestId, {
         success = true,
-        email = messageData
+        email = messageData,
+        unreadCount = CountUnreadForPlayer(ply:SteamID64())
     })
 end
 
@@ -480,22 +565,49 @@ local function HandleUpdateStateRequest(ply, requestId, payload)
     local operation = string.lower(tostring(payload.operation or ""))
     local messageIds = istable(payload.messageIds) and payload.messageIds or {}
     local updated = 0
+    local processedIds = {}
 
     for _, messageId in ipairs(messageIds) do
         local messageData = ReadMessageForPlayer(steamID64, messageId)
         if messageData then
-            if operation == "delete" then
-                messageData.deleted = true
-                updated = updated + 1
-            elseif operation == "read" then
-                messageData.read = true
-                updated = updated + 1
-            elseif operation == "unread" then
-                messageData.read = false
-                updated = updated + 1
+            local linkedMessages = CollectLinkedMailboxMessages(steamID64, messageData)
+            if #linkedMessages <= 0 then
+                linkedMessages = {
+                    {
+                        id = messageId,
+                        data = messageData
+                    }
+                }
             end
 
-            WriteMessageForPlayer(steamID64, messageData)
+            for _, linkedMessage in ipairs(linkedMessages) do
+                if not processedIds[linkedMessage.id] then
+                    processedIds[linkedMessage.id] = true
+
+                    if operation == "delete" then
+                        if linkedMessage.data.deleted then
+                            if DeleteMessageForPlayer(steamID64, linkedMessage.id) then
+                                updated = updated + 1
+                            end
+                        else
+                            linkedMessage.data.deleted = true
+                            if WriteMessageForPlayer(steamID64, linkedMessage.data) then
+                                updated = updated + 1
+                            end
+                        end
+                    elseif operation == "read" then
+                        linkedMessage.data.read = true
+                        if WriteMessageForPlayer(steamID64, linkedMessage.data) then
+                            updated = updated + 1
+                        end
+                    elseif operation == "unread" then
+                        linkedMessage.data.read = false
+                        if WriteMessageForPlayer(steamID64, linkedMessage.data) then
+                            updated = updated + 1
+                        end
+                    end
+                end
+            end
         end
     end
 
@@ -569,10 +681,15 @@ local function DeliverEmailCopies(senderPly, payload)
         end
     end
 
+    local logicalMessageKey = EMAIL.GenerateUUID()
+    local senderIsRecipient = recipientsBySteamID64[senderSteamID64] ~= nil
+
     local mailboxIncomingCounts = {}
-    mailboxIncomingCounts[senderSteamID64] = (mailboxIncomingCounts[senderSteamID64] or 0) + 1
+    mailboxIncomingCounts[senderSteamID64] = 1
     for _, recipient in ipairs(normalizedRecipients) do
-        mailboxIncomingCounts[recipient.steamID64] = (mailboxIncomingCounts[recipient.steamID64] or 0) + 1
+        if recipient.steamID64 ~= senderSteamID64 then
+            mailboxIncomingCounts[recipient.steamID64] = (mailboxIncomingCounts[recipient.steamID64] or 0) + 1
+        end
     end
 
     for steamID64, incomingCount in pairs(mailboxIncomingCounts) do
@@ -585,44 +702,52 @@ local function DeliverEmailCopies(senderPly, payload)
 
     local senderCopy = {
         id = EMAIL.GenerateUUID(),
+        messageKey = logicalMessageKey,
         subject = baseSubject,
         bodyMarkdown = baseBody,
         attachments = normalizedAttachments,
         sender = senderContact,
         recipients = normalizedRecipients,
         sentAt = now,
-        read = true,
+        read = not senderIsRecipient,
         deleted = false,
         mailboxRoles = {
             sender = true,
-            recipient = false
+            recipient = senderIsRecipient
         }
     }
 
     WriteMessageForPlayer(senderSteamID64, senderCopy)
 
+    if senderIsRecipient and IsValid(senderPly) then
+        EmitToastCount(senderPly, 0)
+    end
+
     for _, recipient in ipairs(normalizedRecipients) do
-        local recipientCopy = {
-            id = EMAIL.GenerateUUID(),
-            subject = baseSubject,
-            bodyMarkdown = baseBody,
-            attachments = normalizedAttachments,
-            sender = senderContact,
-            recipients = normalizedRecipients,
-            sentAt = now,
-            read = false,
-            deleted = false,
-            mailboxRoles = {
-                sender = false,
-                recipient = true
+        if recipient.steamID64 ~= senderSteamID64 then
+            local recipientCopy = {
+                id = EMAIL.GenerateUUID(),
+                messageKey = logicalMessageKey,
+                subject = baseSubject,
+                bodyMarkdown = baseBody,
+                attachments = normalizedAttachments,
+                sender = senderContact,
+                recipients = normalizedRecipients,
+                sentAt = now,
+                read = false,
+                deleted = false,
+                mailboxRoles = {
+                    sender = false,
+                    recipient = true
+                }
             }
-        }
 
-        WriteMessageForPlayer(recipient.steamID64, recipientCopy)
+            WriteMessageForPlayer(recipient.steamID64, recipientCopy)
 
-        local recipientPly = player.GetBySteamID64(recipient.steamID64)
-        if IsValid(recipientPly) then
-            EmitToastCount(recipientPly, 0)
+            local recipientPly = player.GetBySteamID64(recipient.steamID64)
+            if IsValid(recipientPly) then
+                EmitToastCount(recipientPly, 0)
+            end
         end
     end
 

@@ -316,7 +316,7 @@ return {
     title = "Minesweeper",
     icon = "💣",
     width = 400,
-    height = 450,
+    height = 460,
     getContent = MINESWEEPER.GetContent,
     getInitScript = MINESWEEPER.GetInitScript,
     getJavaScript = MINESWEEPER.GetJavaScript,

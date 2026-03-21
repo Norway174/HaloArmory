@@ -116,61 +116,56 @@ function SETTINGS.GetContent()
             <div id="settings-panel-interface" class="settings-panel">
                 <div class="settings-section">
                     <h3>Interface Colors</h3>
+                    <div class="settings-helper-text">Adjust the shared colors and roundness used across windows, sidebars, buttons, and text.</div>
                     <div class="settings-interface-grid">
-                        <div class="settings-subsection">
-                            <h4>Primary + Secondary + Highlight</h4>
-                            <div class="settings-option">
-                                <label>Primary Color:</label>
-                                <div class="settings-color-card">
-                                    <div class="settings-color-card-title">Primary Color</div>
-                                    <div class="settings-color-input-row">
-                                        <input type="color" id="primary-color" value="#3a3a3a" oninput="settingsApp.updateAppearancePreview()" onchange="settingsApp.updateAppearancePreview()">
-                                    </div>
-                                    <div id="primary-color-value" class="settings-color-value">#3A3A3A</div>
+                        <div class="settings-option">
+                            <label>Primary Color:</label>
+                            <div class="settings-color-card">
+                                <div class="settings-color-card-title">Primary Color</div>
+                                <div class="settings-color-input-row">
+                                    <input type="color" id="primary-color" value="#3a3a3a" oninput="settingsApp.updateAppearancePreview()" onchange="settingsApp.updateAppearancePreview()">
                                 </div>
-                            </div>
-                            <div class="settings-option">
-                                <label>Secondary Color:</label>
-                                <div class="settings-color-card">
-                                    <div class="settings-color-card-title">Secondary Color</div>
-                                    <div class="settings-color-input-row">
-                                        <input type="color" id="secondary-color" value="#4f5f78" oninput="settingsApp.updateAppearancePreview()" onchange="settingsApp.updateAppearancePreview()">
-                                    </div>
-                                    <div id="secondary-color-value" class="settings-color-value">#4F5F78</div>
-                                </div>
-                            </div>
-                            <div class="settings-option">
-                                <label>Highlight Color:</label>
-                                <div class="settings-color-card">
-                                    <div class="settings-color-card-title">Highlight Color</div>
-                                    <div class="settings-color-input-row">
-                                        <input type="color" id="highlight-color" value="#4a9eff" oninput="settingsApp.updateAppearancePreview()" onchange="settingsApp.updateAppearancePreview()">
-                                    </div>
-                                    <div id="highlight-color-value" class="settings-color-value">#4A9EFF</div>
-                                </div>
-                            </div>
-                            <div class="settings-option">
-                                <label>Roundness:</label>
-                                <div class="settings-roundness-card">
-                                    <div class="settings-roundness-inputs">
-                                        <input type="range" id="ui-roundness-slider" min="0" max="24" step="1" value="6" oninput="settingsApp.syncRoundnessFromSlider()">
-                                        <input type="number" id="ui-roundness-number" min="0" max="24" step="1" value="6" oninput="settingsApp.syncRoundnessFromNumber()">
-                                    </div>
-                                    <div class="settings-roundness-hint">Controls window corners, menus, buttons, and shared chrome.</div>
-                                </div>
+                                <div id="primary-color-value" class="settings-color-value">#3A3A3A</div>
                             </div>
                         </div>
-                        <div class="settings-subsection">
-                            <h4>Text Color</h4>
-                            <div class="settings-option">
-                                <label>Text Color:</label>
-                                <div class="settings-color-card">
-                                    <div class="settings-color-card-title">Text Color</div>
-                                    <div class="settings-color-input-row">
-                                        <input type="color" id="text-color" value="#ffffff" oninput="settingsApp.updateAppearancePreview()" onchange="settingsApp.updateAppearancePreview()">
-                                    </div>
-                                    <div id="text-color-value" class="settings-color-value">#FFFFFF</div>
+                        <div class="settings-option">
+                            <label>Secondary Color:</label>
+                            <div class="settings-color-card">
+                                <div class="settings-color-card-title">Secondary Color</div>
+                                <div class="settings-color-input-row">
+                                    <input type="color" id="secondary-color" value="#4f5f78" oninput="settingsApp.updateAppearancePreview()" onchange="settingsApp.updateAppearancePreview()">
                                 </div>
+                                <div id="secondary-color-value" class="settings-color-value">#4F5F78</div>
+                            </div>
+                        </div>
+                        <div class="settings-option">
+                            <label>Highlight Color:</label>
+                            <div class="settings-color-card">
+                                <div class="settings-color-card-title">Highlight Color</div>
+                                <div class="settings-color-input-row">
+                                    <input type="color" id="highlight-color" value="#4a9eff" oninput="settingsApp.updateAppearancePreview()" onchange="settingsApp.updateAppearancePreview()">
+                                </div>
+                                <div id="highlight-color-value" class="settings-color-value">#4A9EFF</div>
+                            </div>
+                        </div>
+                        <div class="settings-option">
+                            <label>Text Color:</label>
+                            <div class="settings-color-card">
+                                <div class="settings-color-card-title">Text Color</div>
+                                <div class="settings-color-input-row">
+                                    <input type="color" id="text-color" value="#ffffff" oninput="settingsApp.updateAppearancePreview()" onchange="settingsApp.updateAppearancePreview()">
+                                </div>
+                                <div id="text-color-value" class="settings-color-value">#FFFFFF</div>
+                            </div>
+                        </div>
+                        <div class="settings-option settings-option-wide">
+                            <label>Roundness:</label>
+                            <div class="settings-roundness-card">
+                                <div class="settings-roundness-inputs">
+                                    <input type="range" id="ui-roundness-slider" min="0" max="24" step="1" value="6" oninput="settingsApp.syncRoundnessFromSlider()">
+                                    <input type="number" id="ui-roundness-number" min="0" max="24" step="1" value="6" oninput="settingsApp.syncRoundnessFromNumber()">
+                                </div>
+                                <div class="settings-roundness-hint">Controls window corners, menus, buttons, and shared chrome.</div>
                             </div>
                         </div>
                     </div>
@@ -198,7 +193,12 @@ function SETTINGS.GetContent()
             </div>
         </div>
         <div class="settings-footer">
-            <button type="button" onclick="settingsApp.saveAppearance()" class="settings-primary-btn settings-save-btn">Save Appearance</button>
+            <div class="settings-footer-actions">
+                <div class="settings-footer-left">
+                    <button type="button" onclick="settingsApp.saveAppearance()" class="settings-primary-btn settings-save-btn">Save Appearance</button>
+                    <button type="button" onclick="settingsApp.discardChanges()" class="settings-secondary-btn settings-discard-btn" disabled>Discard Changes</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -263,10 +263,16 @@ var settingsApp = {
     pendingPresetLoad: null,
     presetCallbacks: {},
     presetRequestCounter: 0,
+    savedConfig: null,
+    savedConfigSerialized: '',
+    dirty: false,
+    cleanupBound: false,
 
     init: function(windowId) {
         this.windowId = windowId;
+        this.dirty = false;
         this.switchPanel('background');
+        this.bindCleanup();
         this.loadConfig();
         this.refreshPresetList();
         this.setupPresetLoadSelection();
@@ -275,6 +281,8 @@ var settingsApp = {
             settingsApp.updateBackgroundMode();
             settingsApp.updateAppearancePreview();
         });
+
+        this.updateDiscardButtonState();
     },
 
     getDefaultConfig: function() {
@@ -307,6 +315,22 @@ var settingsApp = {
             if (nav) {
                 nav.classList.toggle('settings-nav-btn-active', isActive);
             }
+        });
+    },
+
+    bindCleanup: function() {
+        if (this.cleanupBound) {
+            return;
+        }
+
+        this.cleanupBound = true;
+        document.addEventListener('windowclosing', function(e) {
+            if (!e || !e.detail || e.detail.id !== settingsApp.windowId) {
+                return;
+            }
+
+            settingsApp.revertUnsavedChanges(true);
+            settingsApp.windowId = null;
         });
     },
 
@@ -376,7 +400,8 @@ var settingsApp = {
         this.updateAppearancePreview();
     },
 
-    applyConfigToControls: function(config) {
+    applyConfigToControls: function(config, options) {
+        options = options || {};
         var normalized = window.osConfigManager && window.osConfigManager.normalizeConfig
             ? window.osConfigManager.normalizeConfig(config)
             : config;
@@ -409,14 +434,21 @@ var settingsApp = {
         this.syncRoundnessInputs(normalized.roundness == null ? 6 : normalized.roundness);
 
         this.updateBackgroundMode();
-        this.updateAppearancePreview();
+        this.refreshPreviewValues();
+        this.applyPreviewConfig(normalized);
+
+        if (options.markSaved) {
+            this.setSavedConfig(normalized);
+        } else {
+            this.syncDirtyState(normalized);
+        }
     },
 
     loadConfig: function() {
         var self = this;
 
         if (!window.filesystem) {
-            self.applyConfigToControls(self.getDefaultConfig());
+            self.applyConfigToControls(self.getDefaultConfig(), { markSaved: true });
             return;
         }
 
@@ -425,7 +457,7 @@ var settingsApp = {
                 ? window.osConfigManager.parseConfigContent(configContent)
                 : self.getDefaultConfig();
 
-            self.applyConfigToControls(config);
+            self.applyConfigToControls(config, { markSaved: true });
         });
     },
 
@@ -468,7 +500,60 @@ var settingsApp = {
         return config;
     },
 
-    updateAppearancePreview: function() {
+    serializeNormalizedConfig: function(config) {
+        var normalized = window.osConfigManager && window.osConfigManager.normalizeConfig
+            ? window.osConfigManager.normalizeConfig(config)
+            : config;
+
+        return window.osConfigManager && window.osConfigManager.serializeConfig
+            ? window.osConfigManager.serializeConfig(normalized)
+            : JSON.stringify(normalized);
+    },
+
+    setSavedConfig: function(config) {
+        var normalized = window.osConfigManager && window.osConfigManager.normalizeConfig
+            ? window.osConfigManager.normalizeConfig(config)
+            : config;
+
+        this.savedConfig = normalized;
+        this.savedConfigSerialized = this.serializeNormalizedConfig(normalized);
+        this.setDirty(false);
+    },
+
+    setDirty: function(isDirty) {
+        this.dirty = !!isDirty;
+        this.updateDiscardButtonState();
+    },
+
+    updateDiscardButtonState: function() {
+        var discardBtn = document.querySelector('.settings-discard-btn');
+        if (!discardBtn) {
+            return;
+        }
+
+        discardBtn.disabled = !this.dirty;
+    },
+
+    syncDirtyState: function(config) {
+        if (!this.savedConfigSerialized) {
+            this.setDirty(false);
+            return;
+        }
+
+        this.setDirty(this.serializeNormalizedConfig(config) !== this.savedConfigSerialized);
+    },
+
+    applyPreviewConfig: function(config) {
+        var normalized = window.osConfigManager && window.osConfigManager.normalizeConfig
+            ? window.osConfigManager.normalizeConfig(config)
+            : config;
+
+        if (window.osThemeManager) {
+            window.osThemeManager.applyConfig(normalized);
+        }
+    },
+
+    refreshPreviewValues: function() {
         this.syncColorControl('bg-color', 'bg-color-value');
         this.syncColorControl('bg-gradient1', 'bg-gradient1-value');
         this.syncColorControl('bg-gradient2', 'bg-gradient2-value');
@@ -477,6 +562,13 @@ var settingsApp = {
         this.syncColorControl('secondary-color', 'secondary-color-value');
         this.syncColorControl('highlight-color', 'highlight-color-value');
         this.syncColorControl('text-color', 'text-color-value');
+    },
+
+    updateAppearancePreview: function() {
+        var config = this.buildConfigFromControls();
+        this.refreshPreviewValues();
+        this.applyPreviewConfig(config);
+        this.syncDirtyState(config);
     },
 
     updateBackgroundPreview: function() {
@@ -501,6 +593,7 @@ var settingsApp = {
                 if (window.osThemeManager) {
                     window.osThemeManager.applyConfig(normalized);
                 }
+                settingsApp.setSavedConfig(normalized);
                 if (successMessage) {
                     alert(successMessage);
                 }
@@ -512,6 +605,28 @@ var settingsApp = {
 
     saveAppearance: function() {
         this.persistConfig(this.buildConfigFromControls(), 'Appearance saved!');
+    },
+
+    revertUnsavedChanges: function(skipControlReset) {
+        if (!this.savedConfig) {
+            return;
+        }
+
+        if (skipControlReset) {
+            this.applyPreviewConfig(this.savedConfig);
+            this.setDirty(false);
+            return;
+        }
+
+        this.applyConfigToControls(this.savedConfig, { markSaved: true });
+    },
+
+    discardChanges: function() {
+        if (!this.dirty) {
+            return;
+        }
+
+        this.revertUnsavedChanges(false);
     },
 
     saveBackground: function() {
@@ -893,13 +1008,13 @@ function SETTINGS.GetCSS()
 .settings-sidebar {
     width: 180px;
     flex-shrink: 0;
-    padding: 18px 14px;
-    border-right: 1px solid var(--color-window-border, rgba(255, 255, 255, 0.08));
-    background: linear-gradient(180deg, var(--color-window-bg, #334055), var(--color-secondary-surface-alt, #2a3446));
+    padding: 12px;
+    border-right: 1px solid var(--color-window-border, #444);
+    background: var(--color-sidebar-bg, #202020);
 }
 
 .settings-sidebar-header {
-    margin-bottom: 18px;
+    margin-bottom: 14px;
 }
 
 .settings-sidebar-title {
@@ -917,26 +1032,25 @@ function SETTINGS.GetCSS()
 .settings-nav-btn {
     width: 100%;
     margin-bottom: 8px;
-    padding: 12px 12px;
-    border: 1px solid var(--color-window-border, rgba(255, 255, 255, 0.08));
-    border-radius: var(--radius-ui-large, 10px);
-    background: rgba(255, 255, 255, 0.02);
-    color: var(--color-text-primary, #d7dce5);
+    padding: 10px 12px;
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: var(--radius-ui, 6px);
+    background: var(--color-button-muted-bg, #2e2e2e);
+    color: var(--color-text-primary, #ffffff);
     text-align: left;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .settings-nav-btn:hover {
-    background: var(--color-taskbar-item-hover-bg, rgba(255, 255, 255, 0.06));
-    border-color: var(--color-accent, rgba(255, 255, 255, 0.14));
-    transform: translateX(2px);
+    background: var(--color-button-hover-bg, #3a3a3a);
+    border-color: var(--color-accent, #555);
 }
 
 .settings-nav-btn-active {
-    background: linear-gradient(180deg, var(--color-icon-hover-bg, rgba(74, 158, 255, 0.28)), var(--color-button-bg, rgba(74, 158, 255, 0.14)));
-    border-color: var(--color-accent, rgba(115, 184, 255, 0.55));
-    color: var(--color-text-primary, #ffffff);
+    background: var(--color-button-bg, #3b74b5);
+    border-color: var(--color-accent, #5e9be3);
+    color: var(--color-text-on-button, #ffffff);
 }
 
 .settings-nav-label {
@@ -1007,7 +1121,7 @@ function SETTINGS.GetCSS()
 .settings-preset-name {
     width: 100%;
     padding: 8px 10px;
-    background: var(--color-secondary-surface-alt, #303030);
+    background: var(--color-input-bg, #303030);
     border: 1px solid var(--color-window-border, #565656);
     color: var(--color-text-primary, #fff);
     border-radius: var(--radius-ui-small, 4px);
@@ -1028,7 +1142,7 @@ function SETTINGS.GetCSS()
     padding: 10px;
     border: 1px solid var(--color-window-border, #4c4c4c);
     border-radius: var(--radius-ui, 6px);
-    background: var(--color-window-bg, #334055);
+    /*background: var(--color-secondary-surface-alt, #1f1f1f);*/
 }
 
 .settings-color-card-title {
@@ -1063,23 +1177,16 @@ function SETTINGS.GetCSS()
 .settings-interface-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
+    gap: 14px 16px;
+    align-items: start;
 }
 
-.settings-subsection {
-    padding: 14px;
-    border: 1px solid var(--color-window-border, rgba(255, 255, 255, 0.08));
-    border-radius: var(--radius-ui-large, 10px);
-    background: var(--color-window-bg, #334055);
+.settings-interface-grid .settings-option {
+    margin-bottom: 0;
 }
 
-.settings-subsection h4 {
-    margin-bottom: 12px;
-    color: var(--color-text-primary, #eef3fa);
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
+.settings-option-wide {
+    grid-column: 1 / -1;
 }
 
 .settings-gradient-grid {
@@ -1101,12 +1208,12 @@ function SETTINGS.GetCSS()
     border-radius: var(--radius-ui, 6px);
     font-size: 12px;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
 
 .settings-roundness-card {
     padding: 12px;
-    border: 1px solid #4c4c4c;
+    border: 1px solid var(--color-window-border, #4c4c4c);
     border-radius: var(--radius-ui, 6px);
     background: var(--color-window-bg, #334055);
 }
@@ -1124,7 +1231,7 @@ function SETTINGS.GetCSS()
 #ui-roundness-number {
     width: 78px;
     padding: 8px 10px;
-    background: var(--color-secondary-surface-alt, #303030);
+    background: var(--color-input-bg, #303030);
     border: 1px solid var(--color-window-border, #565656);
     color: var(--color-text-primary, #fff);
     border-radius: var(--radius-ui-small, 4px);
@@ -1171,6 +1278,21 @@ function SETTINGS.GetCSS()
 .settings-danger-btn:hover {
     background: #843636;
     border-color: #a34d4d;
+}
+
+.settings-primary-btn:disabled,
+.settings-secondary-btn:disabled,
+.settings-danger-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.settings-primary-btn:disabled:hover,
+.settings-secondary-btn:disabled:hover,
+.settings-danger-btn:disabled:hover {
+    background: inherit;
+    border-color: inherit;
 }
 
 .settings-preset-save-row {
@@ -1244,9 +1366,24 @@ function SETTINGS.GetCSS()
 }
 
 .settings-footer {
-    padding: 14px 18px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(180deg, var(--color-window-bg, rgba(32, 32, 32, 0.94)), var(--color-surface-2, rgba(24, 24, 24, 0.98)));
+    flex-shrink: 0;
+    padding: 12px;
+    border-top: 1px solid var(--color-window-border, #444);
+    background: var(--color-footer-bar-bg, #2d3747);
+}
+
+.settings-footer-actions {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+}
+
+.settings-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .settings-save-btn {

@@ -110,9 +110,47 @@ function escapeLuaString(str) {
 
 // Filesystem bridge using DHTML Lua bridge
 window.filesystemCallbacks = window.filesystemCallbacks || {};
+window.filesystemPendingOps = window.filesystemPendingOps || {};
+
+window.notifyLocalFilesystemChange = function(path) {
+    var targetPath = String(path || '');
+    if (!targetPath) {
+        return;
+    }
+
+    var folderPath = targetPath;
+    if (!/\/$/i.test(folderPath)) {
+        var slashIndex = folderPath.lastIndexOf('/');
+        folderPath = slashIndex >= 0 ? folderPath.substring(0, slashIndex + 1) : folderPath;
+    }
+
+    if (window.osFileItemRenderer && window.osFileItemRenderer.invalidatePreviewCache) {
+        window.osFileItemRenderer.invalidatePreviewCache(targetPath);
+        window.osFileItemRenderer.invalidatePreviewCache(folderPath);
+    }
+
+    if (window.fileBrowserApp && window.fileBrowserApp.refreshPath) {
+        window.fileBrowserApp.refreshPath(folderPath);
+    }
+
+    if (window._saveDialogCurrentFolder) {
+        var normalizedDialogPath = String(window._saveDialogCurrentFolder || '');
+        if (normalizedDialogPath && !normalizedDialogPath.endsWith('/')) {
+            normalizedDialogPath += '/';
+        }
+        if (folderPath && !folderPath.endsWith('/')) {
+            folderPath += '/';
+        }
+
+        if (normalizedDialogPath === folderPath && window._saveDialogLoadFolder) {
+            window._saveDialogLoadFolder(folderPath);
+        }
+    }
+};
 
 // Register callback function that Lua can call
 window.filesystemCallback = function(callbackId, result, extra) {
+    var pendingOp = window.filesystemPendingOps ? window.filesystemPendingOps[callbackId] : null;
     if (window.filesystemCallbacks && window.filesystemCallbacks[callbackId]) {
         var callback = window.filesystemCallbacks[callbackId];
         // If result is an object with a result property, extract it
@@ -122,6 +160,24 @@ window.filesystemCallback = function(callbackId, result, extra) {
         }
         callback(finalResult, extra, result);
         delete window.filesystemCallbacks[callbackId];
+    }
+    if (pendingOp) {
+        var succeeded = false;
+        if (result && typeof result === 'object' && result.result !== undefined) {
+            succeeded = !!result.result;
+        } else {
+            succeeded = !!result;
+        }
+
+        if (succeeded && pendingOp.path && pendingOp.path.indexOf('ExternalDrive:/') === 0) {
+            window.notifyLocalFilesystemChange(pendingOp.path);
+        }
+
+        if (succeeded && pendingOp.newPath && pendingOp.newPath.indexOf('ExternalDrive:/') === 0) {
+            window.notifyLocalFilesystemChange(pendingOp.newPath);
+        }
+
+        delete window.filesystemPendingOps[callbackId];
     }
 };
 
@@ -162,6 +218,10 @@ window.filesystem = {
         var pathJson = JSON.stringify(path);
         var contentJson = JSON.stringify(content);
         var callbackId = 'write_' + Date.now() + '_' + Math.random();
+        window.filesystemPendingOps[callbackId] = {
+            type: 'write',
+            path: path
+        };
         if (callback) {
             window.filesystemCallbacks[callbackId] = callback;
         }
@@ -241,6 +301,10 @@ window.filesystem = {
     createDirectory: function(path, callback) {
         var pathJson = JSON.stringify(path);
         var callbackId = 'mkdir_' + Date.now() + '_' + Math.random();
+        window.filesystemPendingOps[callbackId] = {
+            type: 'mkdir',
+            path: path
+        };
         if (callback) {
             window.filesystemCallbacks[callbackId] = callback;
         }
@@ -265,6 +329,10 @@ window.filesystem = {
     deleteFile: function(path, callback) {
         var pathJson = JSON.stringify(path);
         var callbackId = 'delete_' + Date.now() + '_' + Math.random();
+        window.filesystemPendingOps[callbackId] = {
+            type: 'delete',
+            path: path
+        };
         
         if (callback) {
             window.filesystemCallbacks[callbackId] = callback;
@@ -294,6 +362,17 @@ window.filesystem = {
         var oldPathJson = JSON.stringify(oldPath);
         var newNameJson = JSON.stringify(newName);
         var callbackId = 'rename_' + Date.now() + '_' + Math.random();
+        var normalizedOldPath = String(oldPath || '');
+        var renamedPath = normalizedOldPath;
+        var renameSlashIndex = normalizedOldPath.lastIndexOf('/');
+        if (renameSlashIndex >= 0) {
+            renamedPath = normalizedOldPath.substring(0, renameSlashIndex + 1) + String(newName || '');
+        }
+        window.filesystemPendingOps[callbackId] = {
+            type: 'rename',
+            path: oldPath,
+            newPath: renamedPath
+        };
         
         if (callback) {
             window.filesystemCallbacks[callbackId] = callback;
@@ -325,7 +404,7 @@ end
 
 -- Helper: Sanitize filename using shared utilities
 -- New system: .txt for plain text, .shortcut.dat for shortcuts, .dat for config
-local function sanitizeFilename(name, fileType)
+local function sanitizeFilename(name, fileType, content)
     if not name then
         name = "untitled"
         fileType = fileType or "text"
@@ -338,10 +417,15 @@ local function sanitizeFilename(name, fileType)
     
     -- Detect file type if not provided
     if not fileType then
-        if string.match(name, "%.shortcut") or string.match(name, "_shortcut") then
-            fileType = "shortcut"
-        elseif string.match(string.lower(name), "%.png$") or string.match(string.lower(name), "%.jpg$") or string.match(string.lower(name), "%.jpeg$") then
+        local lowerName = string.lower(name)
+        if string.match(lowerName, "%.image%.dat$") or string.match(lowerName, "%.image$") then
             fileType = "image"
+        elseif (string.match(lowerName, "%.png$") or string.match(lowerName, "%.jpg$") or string.match(lowerName, "%.jpeg$")) and string.StartWith(tostring(content or ""), "data:image/") then
+            fileType = "image"
+        elseif string.match(name, "%.shortcut") or string.match(name, "_shortcut") then
+            fileType = "shortcut"
+        elseif UTILS.ALLOWED_EXTENSIONS[string.match(string.lower(name), "(%.[a-z0-9]+)$") or ""] then
+            fileType = "passthrough"
         else
             fileType = "text"
         end
@@ -398,6 +482,30 @@ local function createFileContent(name, content, fileType)
             -- If it's a table (from Lua), convert to JSON
             return util.TableToJSON(content)
         end
+    elseif fileType == "image" then
+        local displayName = tostring(name or "image")
+        displayName = string.gsub(displayName, "%.image%.dat$", "")
+        displayName = string.gsub(displayName, "%.image$", "")
+        displayName = string.gsub(displayName, "%.(png|jpg|jpeg)$", "")
+        displayName = displayName .. ".image"
+
+        if type(content) == "string" then
+            local parsed = util.JSONToTable(content)
+            if istable(parsed) and parsed.content then
+                parsed.filename = displayName
+                return util.TableToJSON(parsed)
+            end
+
+            return util.TableToJSON({
+                filename = displayName,
+                content = content
+            })
+        else
+            if istable(content) and not content.filename then
+                content.filename = displayName
+            end
+            return util.TableToJSON(content)
+        end
     else
         -- Text files are plain text (no wrapper)
         return content
@@ -410,6 +518,38 @@ end
 
 local function IsTrashPathParts(parts)
     return istable(parts) and #parts >= 2 and IsSystemFolderPart(parts[1]) and parts[2] == "trash"
+end
+
+local function SplitFilenameForCollision(name)
+    local filename = tostring(name or "untitled")
+
+    if string.match(string.lower(filename), "%.shortcut%.dat$") then
+        return string.gsub(filename, "%.shortcut%.dat$", ""), ".shortcut.dat"
+    end
+
+    local extension = string.match(filename, "(%.[^%.]+)$")
+    if extension then
+        return string.sub(filename, 1, #filename - #extension), extension
+    end
+
+    return filename, ""
+end
+
+local function ResolveTrashFilenameCollision(current, filename)
+    if not istable(current) or not current[filename] then
+        return filename
+    end
+
+    local baseName, extension = SplitFilenameForCollision(filename)
+    local index = 1
+    local candidate = filename
+
+    while current[candidate] do
+        candidate = string.format("%s_%d%s", baseName, index, extension)
+        index = index + 1
+    end
+
+    return candidate
 end
 
 local function IsProgramsPathParts(parts)
@@ -479,20 +619,25 @@ function FILESYSTEM.WriteFile(path, content)
         local originalName = parts[#parts] or "untitled"
         local fileType = "text" -- Default to text
         
-        if string.match(originalName, "%.shortcut") or string.match(originalName, "_shortcut") then
+        local lowerOriginalName = string.lower(originalName)
+
+        if string.match(lowerOriginalName, "%.image%.dat$") or string.match(lowerOriginalName, "%.image$") then
+            fileType = "image"
+        elseif (string.match(lowerOriginalName, "%.png$") or string.match(lowerOriginalName, "%.jpg$") or string.match(lowerOriginalName, "%.jpeg$")) and string.StartWith(tostring(content or ""), "data:image/") then
+            fileType = "image"
+        elseif string.match(originalName, "%.shortcut") or string.match(originalName, "_shortcut") then
             fileType = "shortcut"
         elseif originalName == "config" or originalName == ".config" or originalName == "config.dat" then
             fileType = "config"
-        elseif string.match(string.lower(originalName), "%.png$") or string.match(string.lower(originalName), "%.jpg$") or string.match(string.lower(originalName), "%.jpeg$") then
-            fileType = "image"
+        elseif UTILS.ALLOWED_EXTENSIONS[string.match(lowerOriginalName, "(%.[a-z0-9]+)$") or ""] then
+            fileType = "passthrough"
         end
         
         -- Sanitize filename with correct extension
-        local filename = sanitizeFilename(originalName, fileType)
+        local filename = sanitizeFilename(originalName, fileType, content)
 
         if IsTrashPathParts(parts) and current[filename] then
-            print("[Filesystem] WriteFile failed: Trash items are read-only")
-            return false
+            filename = ResolveTrashFilenameCollision(current, filename)
         end
         
         -- Create file content based on type
@@ -543,16 +688,22 @@ function FILESYSTEM.WriteFile(path, content)
         local originalName = parts[#parts]
         local fileType = "text"
         
-        if string.match(originalName, "%.shortcut") then
+        local lowerOriginalName = string.lower(originalName)
+
+        if string.match(lowerOriginalName, "%.image%.dat$") or string.match(lowerOriginalName, "%.image$") then
+            fileType = "image"
+        elseif (string.match(lowerOriginalName, "%.png$") or string.match(lowerOriginalName, "%.jpg$") or string.match(lowerOriginalName, "%.jpeg$")) and string.StartWith(tostring(content or ""), "data:image/") then
+            fileType = "image"
+        elseif string.match(originalName, "%.shortcut") then
             fileType = "shortcut"
         elseif originalName == "config" or originalName == ".config" then
             fileType = "config"
-        elseif string.match(string.lower(originalName), "%.png$") or string.match(string.lower(originalName), "%.jpg$") or string.match(string.lower(originalName), "%.jpeg$") then
-            fileType = "image"
+        elseif UTILS.ALLOWED_EXTENSIONS[string.match(lowerOriginalName, "(%.[a-z0-9]+)$") or ""] then
+            fileType = "passthrough"
         end
         
         -- Sanitize filename
-        local filename = sanitizeFilename(originalName, fileType)
+        local filename = sanitizeFilename(originalName, fileType, content)
         
         -- Rebuild path with sanitized filename
         local sanitizedLocalPath = ""
@@ -822,6 +973,10 @@ function FILESYSTEM.ListDirectory(path)
                             end
                         end
                     end
+                elseif fileType == "image" and fileData then
+                    if fileData.filename then
+                        displayName = fileData.filename
+                    end
                 elseif fileType == "config" then
                     -- config.dat file opens Settings when double-clicked
                     programId = "settings"
@@ -857,6 +1012,14 @@ function FILESYSTEM.ListDirectory(path)
                     -- Get file type and display name for files
                     local fileType = UTILS.GetFileType(name)
                     local displayName = UTILS.GetDisplayName(name)
+
+                    if fileType == "image" then
+                        local fileContent = file.Read(filePath, "DATA")
+                        local fileData = parseFileContent(fileContent or "", name)
+                        if istable(fileData) and fileData.filename and fileData.filename ~= "" then
+                            displayName = tostring(fileData.filename)
+                        end
+                    end
                     
                     table.insert(files, {
                         name = name,
@@ -884,27 +1047,27 @@ local function DeleteLocalPathRecursive(path)
         return false
     end
 
-    if file.Exists(path, "DATA") then
-        file.Delete(path)
+    if file.IsDir(path, "DATA") then
+        local normalized = string.match(path, "/$") and path or (path .. "/")
+        local files, dirs = file.Find(normalized .. "*", "DATA")
+
+        for _, fileName in ipairs(files or {}) do
+            file.Delete(normalized .. fileName)
+        end
+
+        for _, dirName in ipairs(dirs or {}) do
+            DeleteLocalPathRecursive(normalized .. dirName)
+        end
+
+        file.Delete(string.gsub(normalized, "/$", ""))
         return true
     end
 
-    if not file.IsDir(path, "DATA") then
+    if not file.Exists(path, "DATA") then
         return false
     end
 
-    local normalized = string.match(path, "/$") and path or (path .. "/")
-    local files, dirs = file.Find(normalized .. "*", "DATA")
-
-    for _, fileName in ipairs(files or {}) do
-        file.Delete(normalized .. fileName)
-    end
-
-    for _, dirName in ipairs(dirs or {}) do
-        DeleteLocalPathRecursive(normalized .. dirName)
-    end
-
-    file.Delete(string.gsub(normalized, "/$", ""))
+    file.Delete(path)
     return true
 end
 

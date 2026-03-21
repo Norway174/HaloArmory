@@ -17,6 +17,10 @@ local PROGRAMS = include(scriptPath .. "programs/programs_registry.lua")
 local Notes = include(scriptPath .. "programs/notes.lua")
 local Paint = include(scriptPath .. "programs/paint.lua")
 local Minesweeper = include(scriptPath .. "programs/minesweeper.lua")
+local PingPong = include(scriptPath .. "programs/pingpong.lua")
+local Snake = include(scriptPath .. "programs/snake.lua")
+local Conway = include(scriptPath .. "programs/conway.lua")
+local Game2048 = include(scriptPath .. "programs/game2048.lua")
 local Email = include(scriptPath .. "programs/email.lua")
 local Settings = include(scriptPath .. "programs/settings.lua")
 local Calculator = include(scriptPath .. "programs/calculator.lua")
@@ -27,6 +31,10 @@ local ExternalDrive = include(scriptPath .. "programs/external_drive.lua")
 PROGRAMS.Register("notes", Notes)
 PROGRAMS.Register("paint", Paint)
 PROGRAMS.Register("minesweeper", Minesweeper)
+PROGRAMS.Register("pingpong", PingPong)
+PROGRAMS.Register("snake", Snake)
+PROGRAMS.Register("conway", Conway)
+PROGRAMS.Register("game2048", Game2048)
 PROGRAMS.Register("email", Email)
 PROGRAMS.Register("settings", Settings)
 PROGRAMS.Register("calculator", Calculator)
@@ -61,6 +69,15 @@ html, body {
     font-size: 13px;
     color: var(--color-text-primary, #ffffff);
     background: var(--color-desktop-bg, #1a1a1a);
+}
+
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none !important;
+    border-color: var(--color-accent, #4a9eff) !important;
+    box-shadow: 0 0 0 1px var(--color-accent, #4a9eff) !important;
 }
 ]])
 
@@ -276,6 +293,13 @@ window.osThemeManager = {
         return this.mix(color, '#000000', amount);
     },
 
+    desaturate: function(color, amount) {
+        var rgb = this.hexToRgb(color);
+        var hsl = this.rgbToHsl(rgb);
+        hsl.s = this.clamp(hsl.s * (1 - this.clamp(amount, 0, 1)), 0, 100);
+        return this.rgbToHex(this.hslToRgb(hsl));
+    },
+
     toRgba: function(color, alpha) {
         var rgb = this.hexToRgb(color);
         return 'rgba(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ', ' + alpha + ')';
@@ -405,6 +429,7 @@ window.osThemeManager = {
         var root = document.documentElement;
         var primaryColor = this.sanitizeHex(normalized.primaryColor, '#3a3a3a');
         var secondaryColor = this.sanitizeHex(normalized.secondaryColor, '#4f5f78');
+        var secondaryColorLight = this.lighten(secondaryColor, 0.10);
         var highlightColor = this.sanitizeHex(normalized.highlightColor, '#4a9eff');
         var textColor = this.sanitizeHex(normalized.textColor, '#ffffff');
         var roundness = this.clamp(parseInt(normalized.roundness, 10) || 0, 0, 24);
@@ -426,6 +451,14 @@ window.osThemeManager = {
         var hoverBg = this.toRgba(highlightColor, 0.22);
         var buttonBg = this.mix(primaryColor, secondaryColor, 0.30);
         var buttonHoverBg = this.mix(primaryColor, secondaryColor, 0.42);
+        var sidebarBg = this.darken(primaryColor, 0.18);
+        var inputBg = this.darken(primaryColor, 0.28);
+        var secondaryButtonBg = this.darken(secondaryColor, 0.08);
+        var secondaryButtonActiveBg = this.darken(secondaryColor, 0.14);
+        var secondaryButtonHoverBg = this.darken(secondaryColor, 0.22);
+        var secondaryButtonActiveHoverBg = this.darken(secondaryColor, 0.28);
+        var secondaryButtonBorder = this.darken(secondaryColor, 0.30);
+        var footerBarBg = this.darken(this.desaturate(secondaryColor, 0.48), 0.22);
         var taskbarBg = this.mix(primaryColor, '#000000', 0.20);
         var startMenuBg = this.toRgba(this.mix(primaryColor, secondaryColor, 0.18), 0.98);
         var titlebarActiveTop = this.mix(primaryColor, highlightColor, 0.16);
@@ -437,9 +470,11 @@ window.osThemeManager = {
         var textOnPrimarySurface = this.adaptTextColor(textColor, primarySurfaceAlt, { darkMinLightness: 74, lightMaxLightness: 26 });
         var textOnAccent = this.adaptTextColor(textColor, accent, { darkMinLightness: 84, lightMaxLightness: 18 });
         var textOnButton = this.adaptTextColor(textColor, buttonBg, { darkMinLightness: 80, lightMaxLightness: 22 });
+        var textOnSecondaryButton = this.adaptTextColor(textColor, secondaryButtonBg, { darkMinLightness: 80, lightMaxLightness: 22 });
 
         root.style.setProperty('--color-primary', primaryColor);
         root.style.setProperty('--color-secondary', secondaryColor);
+        root.style.setProperty('--color-secondary-light', secondaryColorLight);
         root.style.setProperty('--color-highlight', highlightColor);
         root.style.setProperty('--color-primary-light', this.lighten(highlightColor, 0.08));
         root.style.setProperty('--color-surface-1', surface1);
@@ -453,6 +488,7 @@ window.osThemeManager = {
         root.style.setProperty('--color-text-on-primary-surface', textOnPrimarySurface);
         root.style.setProperty('--color-text-on-accent', textOnAccent);
         root.style.setProperty('--color-text-on-button', textOnButton);
+        root.style.setProperty('--color-text-on-secondary-button', textOnSecondaryButton);
         root.style.setProperty('--color-window-bg', surface1);
         root.style.setProperty('--color-window-content-bg', surface2);
         root.style.setProperty('--color-window-border', border);
@@ -473,6 +509,14 @@ window.osThemeManager = {
         root.style.setProperty('--color-button-bg', buttonBg);
         root.style.setProperty('--color-button-hover-bg', buttonHoverBg);
         root.style.setProperty('--color-button-border', border);
+        root.style.setProperty('--color-sidebar-bg', sidebarBg);
+        root.style.setProperty('--color-input-bg', inputBg);
+        root.style.setProperty('--color-secondary-button-bg', secondaryButtonBg);
+        root.style.setProperty('--color-secondary-button-active-bg', secondaryButtonActiveBg);
+        root.style.setProperty('--color-secondary-button-hover-bg', secondaryButtonHoverBg);
+        root.style.setProperty('--color-secondary-button-active-hover-bg', secondaryButtonActiveHoverBg);
+        root.style.setProperty('--color-secondary-button-border', secondaryButtonBorder);
+        root.style.setProperty('--color-footer-bar-bg', footerBarBg);
         root.style.setProperty('--color-button-muted-bg', this.toRgba('#ffffff', 0.08));
         root.style.setProperty('--color-button-muted-border', this.toRgba('#ffffff', 0.16));
         root.style.setProperty('--color-taskbar-item-bg', this.toRgba('#ffffff', 0.08));

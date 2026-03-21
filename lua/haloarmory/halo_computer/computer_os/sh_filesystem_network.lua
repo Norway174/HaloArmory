@@ -12,6 +12,9 @@ local ReadVirtualFile
 local BuildListEntry
 local ListVirtualDirectory
 local SendActionResponse
+local SendPCFilesSync
+
+local MAX_SYNC_CHUNK_SIZE = 60000
 
 local function IsSystemFolderPart(part)
     return part == ".system" or part == "system"
@@ -19,6 +22,38 @@ end
 
 local function IsTrashPathParts(parts)
     return istable(parts) and #parts >= 2 and IsSystemFolderPart(parts[1]) and parts[2] == "trash"
+end
+
+local function SplitFilenameForCollision(name)
+    local filename = tostring(name or "untitled")
+
+    if string.match(string.lower(filename), "%.shortcut%.dat$") then
+        return string.gsub(filename, "%.shortcut%.dat$", ""), ".shortcut.dat"
+    end
+
+    local extension = string.match(filename, "(%.[^%.]+)$")
+    if extension then
+        return string.sub(filename, 1, #filename - #extension), extension
+    end
+
+    return filename, ""
+end
+
+local function ResolveTrashFilenameCollision(current, filename)
+    if not istable(current) or not current[filename] then
+        return filename
+    end
+
+    local baseName, extension = SplitFilenameForCollision(filename)
+    local index = 1
+    local candidate = filename
+
+    while current[candidate] do
+        candidate = string.format("%s_%d%s", baseName, index, extension)
+        index = index + 1
+    end
+
+    return candidate
 end
 
 local function IsProgramsPathParts(parts)
@@ -208,6 +243,10 @@ if SERVER then
             if isExternalDriveShortcut then
                 entry.icon = "💽"
             end
+        elseif fileType == "image" and fileData then
+            if fileData.filename and fileData.filename ~= "" then
+                entry.displayName = tostring(fileData.filename)
+            end
         elseif fileType == "config" then
             entry.programId = "settings"
             entry.icon = utf8.char(0x2699, 0xFE0F)
@@ -319,6 +358,33 @@ if SERVER then
         net.WriteData(compressed, #compressed)
         net.Send(ply)
     end
+
+    SendPCFilesSync = function(ply, entIndex, pcFiles)
+        if not IsValid(ply) then return false end
+
+        local pcFilesJson = util.TableToJSON(pcFiles or {}) or "{}"
+        local compressed = util.Compress(pcFilesJson)
+        if not compressed then return false end
+
+        local totalLength = #compressed
+        local totalChunks = math.max(1, math.ceil(totalLength / MAX_SYNC_CHUNK_SIZE))
+
+        for chunkIndex = 1, totalChunks do
+            local startPos = ((chunkIndex - 1) * MAX_SYNC_CHUNK_SIZE) + 1
+            local chunkData = string.sub(compressed, startPos, math.min(startPos + MAX_SYNC_CHUNK_SIZE - 1, totalLength))
+
+            net.Start(NET_NAME)
+            net.WriteUInt(HALOARMORY.COMPUTER.INTERFACE.NETWORK.ACTION_SYNC_PC_FILES, 8)
+            net.WriteUInt(entIndex, 16)
+            net.WriteUInt(totalChunks, 16)
+            net.WriteUInt(chunkIndex, 16)
+            net.WriteUInt(#chunkData, 32)
+            net.WriteData(chunkData, #chunkData)
+            net.Send(ply)
+        end
+
+        return true
+    end
     
     -- Function to broadcast PC_Files updates to all connected players
     function HALOARMORY.COMPUTER.INTERFACE.NETWORK.BroadcastPCFilesUpdate(ent)
@@ -328,20 +394,9 @@ if SERVER then
         
         if not connectedPlayers or table.Count(connectedPlayers) == 0 then return end
         
-        -- Serialize PC_Files and send to all connected players
-        local pcFilesJson = util.TableToJSON(ent.PC_Files or {})
-        local compressed = util.Compress(pcFilesJson)
-        
-        if not compressed then return end
-        
         for ply, _ in pairs(connectedPlayers) do
             if IsValid(ply) then
-                net.Start(NET_NAME)
-                net.WriteUInt(HALOARMORY.COMPUTER.INTERFACE.NETWORK.ACTION_SYNC_PC_FILES, 8)
-                net.WriteUInt(entIndex, 16)
-                net.WriteUInt(#compressed, 32)
-                net.WriteData(compressed, #compressed)
-                net.Send(ply)
+                SendPCFilesSync(ply, entIndex, ent.PC_Files or {})
             end
         end
     end
@@ -489,7 +544,7 @@ if SERVER then
                 
                 local filename = parts[#parts] or "untitled"
                 if IsTrashPathParts(parts) and current[filename] then
-                    return
+                    filename = ResolveTrashFilenameCollision(current, filename)
                 end
                 -- Preserve protected flag for config.dat files
                 local isProtected = (filename == "config.dat")
@@ -856,16 +911,7 @@ if SERVER then
                 HALOARMORY.COMPUTER.INTERFACE.FILESYSTEM.EnsureRequiredFolders(ent.PC_Files)
             end
             
-            -- Serialize PC_Files and send to client
-            local pcFilesJson = util.TableToJSON(ent.PC_Files or {})
-            local compressed = util.Compress(pcFilesJson)
-            
-            net.Start(NET_NAME)
-            net.WriteUInt(HALOARMORY.COMPUTER.INTERFACE.NETWORK.ACTION_SYNC_PC_FILES, 8)
-            net.WriteUInt(entIndex, 16)
-            net.WriteUInt(#compressed, 32)
-            net.WriteData(compressed, #compressed)
-            net.Send(ply)
+            SendPCFilesSync(ply, entIndex, ent.PC_Files or {})
             
             -- Register player as connected
             HALOARMORY.COMPUTER.INTERFACE.NETWORK.RegisterPlayer(ent, ply)
@@ -893,9 +939,59 @@ end
 
 if CLIENT then
     HALOARMORY.COMPUTER.INTERFACE.NETWORK.PendingResponses = HALOARMORY.COMPUTER.INTERFACE.NETWORK.PendingResponses or {}
+    HALOARMORY.COMPUTER.INTERFACE.NETWORK.PendingSyncChunks = HALOARMORY.COMPUTER.INTERFACE.NETWORK.PendingSyncChunks or {}
 
     local function CreateRequestId(prefix)
         return string.format("%s_%d_%d", prefix, math.floor(SysTime() * 1000), math.random(1000, 9999))
+    end
+
+    local function FinalizePCFilesSync(entIndex, ent, compressedData)
+        local decompressed = util.Decompress(compressedData)
+        if not decompressed or not IsValid(ent) then
+            return
+        end
+
+        local success, pcFiles = pcall(util.JSONToTable, decompressed)
+        if success and pcFiles then
+            NormalizeSystemFolderKeys(pcFiles)
+
+            ent.PC_Files = pcFiles
+
+            if HALOARMORY.COMPUTER.INTERFACE and HALOARMORY.COMPUTER.INTERFACE.entity then
+                local interfaceEnt = HALOARMORY.COMPUTER.INTERFACE.entity
+                if interfaceEnt:EntIndex() == entIndex then
+                    interfaceEnt.PC_Files = pcFiles
+                end
+            end
+
+            if HALOARMORY.COMPUTER.INTERFACE and HALOARMORY.COMPUTER.INTERFACE.entity == ent then
+                timer.Simple(0.1, function()
+                    if HALOARMORY.COMPUTER.INTERFACE.frame and IsValid(HALOARMORY.COMPUTER.INTERFACE.frame) and HALOARMORY.COMPUTER.INTERFACE.frame.html then
+                        HALOARMORY.COMPUTER.INTERFACE.frame.html:RunJavascript([[
+                            try {
+                                if (window._pendingSyncCallback && window.filesystemCallbacks &&
+                                    window.filesystemCallbacks[window._pendingSyncCallback]) {
+                                    var callbackId = window._pendingSyncCallback;
+                                    window._pendingSyncCallback = null;
+                                    window.filesystemCallbacks[callbackId](true);
+                                    delete window.filesystemCallbacks[callbackId];
+                                } else {
+                                    window._pendingSyncCallback = null;
+                                }
+
+                                if (typeof window.osShellFilesSynced === 'function') {
+                                    window.osShellFilesSynced();
+                                }
+                            } catch(e) {
+                                console.error("Error notifying boot sequence:", e);
+                            }
+                        ]])
+                    end
+                end)
+            end
+        else
+            ent.PC_Files = {}
+        end
     end
 
     -- Request PC_Files sync from server
@@ -1040,47 +1136,37 @@ if CLIENT then
                         local jsCode = string.format([[
                             try {
                                 var folderPath = "%s";
-                                console.log("[CLIENT->JS] handleFolderChange: Received folder path:", folderPath);
-                                console.log("[CLIENT->JS] handleFolderChange: typeof window.handleFolderChange =", typeof window.handleFolderChange);
-                                
+
                                 if (typeof window.handleFolderChange === 'function') {
-                                    console.log("[CLIENT->JS] handleFolderChange: Calling function with path:", folderPath);
                                     window.handleFolderChange(folderPath);
                                 } else {
-                                    console.warn("[CLIENT->JS] handleFolderChange: Function not found! Setting up fallback...");
-                                    // Try to trigger File Browser refresh if it exists
                                     if (window.fileBrowserApp && window.fileBrowserApp.refreshPath) {
-                                        console.log("[CLIENT->JS] Refreshing File Browser via fallback");
                                         window.fileBrowserApp.refreshPath('C:' + folderPath);
                                     }
-                                    // Refresh desktop if needed
+
                                     if (folderPath === '/desktop/' || folderPath === '/desktop') {
                                         if (window.osShell && window.osShell.loadDesktopIcons) {
-                                            console.log("[CLIENT->JS] Refreshing Desktop via fallback");
                                             window.osShell.loadDesktopIcons(true);
                                         }
                                     }
-                                    // Check Save As dialog
+
                                     if (window._saveDialogCurrentFolder) {
                                         var saveDialogPath = window._saveDialogCurrentFolder;
                                         if (!saveDialogPath.endsWith('/')) {
                                             saveDialogPath = saveDialogPath + '/';
                                         }
+
                                         var normalizedPath = 'C:' + folderPath;
                                         if (!normalizedPath.endsWith('/')) {
                                             normalizedPath = normalizedPath + '/';
                                         }
-                                        if (saveDialogPath === normalizedPath) {
-                                            console.log("[CLIENT->JS] Refreshing Save Dialog via fallback");
-                                            if (window._saveDialogLoadFolder) {
-                                                window._saveDialogLoadFolder(normalizedPath);
-                                            }
+
+                                        if (saveDialogPath === normalizedPath && window._saveDialogLoadFolder) {
+                                            window._saveDialogLoadFolder(normalizedPath);
                                         }
                                     }
                                 }
-                            } catch(e) {
-                                console.error("[CLIENT->JS] Error handling folder change:", e);
-                            }
+                            } catch(e) {}
                         ]], escapedPath)
                         
                         HALOARMORY.COMPUTER.INTERFACE.frame.html:RunJavascript(jsCode)
@@ -1089,54 +1175,39 @@ if CLIENT then
             end
             
         elseif action == HALOARMORY.COMPUTER.INTERFACE.NETWORK.ACTION_SYNC_PC_FILES then
+            local totalChunks = net.ReadUInt(16)
+            local chunkIndex = net.ReadUInt(16)
             local dataLen = net.ReadUInt(32)
-            local compressedData = net.ReadData(dataLen)
-            local decompressed = util.Decompress(compressedData)
-            
-            if decompressed and IsValid(ent) then
-                local success, pcFiles = pcall(util.JSONToTable, decompressed)
-                if success and pcFiles then
-                    NormalizeSystemFolderKeys(pcFiles)
+            local chunkData = net.ReadData(dataLen)
 
-                    -- Set on both the entity from net message AND the interface entity
-                    ent.PC_Files = pcFiles
-                    
-                    -- Also ensure HALOARMORY.COMPUTER.INTERFACE.entity has the same data
-                    if HALOARMORY.COMPUTER.INTERFACE and HALOARMORY.COMPUTER.INTERFACE.entity then
-                        local interfaceEnt = HALOARMORY.COMPUTER.INTERFACE.entity
-                        if interfaceEnt:EntIndex() == entIndex then
-                            interfaceEnt.PC_Files = pcFiles
-                        end
-                    end
-                    if HALOARMORY.COMPUTER.INTERFACE and HALOARMORY.COMPUTER.INTERFACE.entity == ent then
-                        timer.Simple(0.1, function()
-                            if HALOARMORY.COMPUTER.INTERFACE.frame and IsValid(HALOARMORY.COMPUTER.INTERFACE.frame) and HALOARMORY.COMPUTER.INTERFACE.frame.html then
-                                HALOARMORY.COMPUTER.INTERFACE.frame.html:RunJavascript([[
-                                    try {
-                                        if (window._pendingSyncCallback && window.filesystemCallbacks &&
-                                            window.filesystemCallbacks[window._pendingSyncCallback]) {
-                                            var callbackId = window._pendingSyncCallback;
-                                            window._pendingSyncCallback = null;
-                                            window.filesystemCallbacks[callbackId](true);
-                                            delete window.filesystemCallbacks[callbackId];
-                                        } else {
-                                            window._pendingSyncCallback = null;
-                                        }
+            if not IsValid(ent) then
+                return
+            end
 
-                                        if (typeof window.osShellFilesSynced === 'function') {
-                                            window.osShellFilesSynced();
-                                        }
-                                    } catch(e) {
-                                        console.error("Error notifying boot sequence:", e);
-                                    }
-                                ]])
-                            end
-                        end)
-                    end
-                else
-                    -- Initialize empty filesystem
-                    ent.PC_Files = {}
+            local pendingKey = tostring(entIndex)
+            local pending = HALOARMORY.COMPUTER.INTERFACE.NETWORK.PendingSyncChunks[pendingKey]
+            if not pending or pending.totalChunks ~= totalChunks then
+                pending = {
+                    totalChunks = totalChunks,
+                    received = 0,
+                    chunks = {}
+                }
+                HALOARMORY.COMPUTER.INTERFACE.NETWORK.PendingSyncChunks[pendingKey] = pending
+            end
+
+            if not pending.chunks[chunkIndex] then
+                pending.chunks[chunkIndex] = chunkData
+                pending.received = pending.received + 1
+            end
+
+            if pending.received >= pending.totalChunks then
+                local combined = {}
+                for i = 1, pending.totalChunks do
+                    combined[#combined + 1] = pending.chunks[i] or ""
                 end
+
+                HALOARMORY.COMPUTER.INTERFACE.NETWORK.PendingSyncChunks[pendingKey] = nil
+                FinalizePCFilesSync(entIndex, ent, table.concat(combined))
             end
         end
     end)

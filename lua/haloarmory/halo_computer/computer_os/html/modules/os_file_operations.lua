@@ -423,6 +423,53 @@ window.osFileOperations = {
         return parts.base + '_' + index + parts.extension;
     },
 
+    buildFallbackUniqueFileName: function(filename) {
+        var parts = this.splitFileName(filename);
+        var suffix = '_' + String(Date.now()).slice(-6);
+        return parts.base + suffix + parts.extension;
+    },
+
+    getDefaultExtensionForItem: function(item, filename) {
+        var lowerName = String(filename || '').toLowerCase();
+        if (lowerName.endsWith('.shortcut.dat')) {
+            return '.shortcut.dat';
+        }
+
+        if (lowerName.lastIndexOf('.') > 0) {
+            return '';
+        }
+
+        var filetype = String(item && (item.filetype || item.type) || '').toLowerCase();
+        if (filetype === 'text' || filetype === 'file') {
+            return '.txt';
+        }
+        if (filetype === 'config' || filetype === 'data') {
+            return '.dat';
+        }
+        if (filetype === 'shortcut') {
+            return '.shortcut.dat';
+        }
+
+        return '';
+    },
+
+    getCollisionCandidates: function(item, filename) {
+        var candidates = {};
+        var rawName = String(filename || '');
+        var lowerRawName = rawName.toLowerCase();
+
+        if (lowerRawName) {
+            candidates[lowerRawName] = true;
+        }
+
+        var defaultExtension = this.getDefaultExtensionForItem(item, rawName);
+        if (defaultExtension && lowerRawName && !lowerRawName.endsWith(defaultExtension)) {
+            candidates[(rawName + defaultExtension).toLowerCase()] = true;
+        }
+
+        return candidates;
+    },
+
     getTransferValidationError: function(item, destinationType, targetPath) {
         if (!item || !item.filepath) {
             return 'Invalid item';
@@ -484,7 +531,9 @@ window.osFileOperations = {
             var resolvedName = filename;
             var index = 1;
 
-            while (existingNames[resolvedName.toLowerCase()]) {
+            while (Object.keys(this.getCollisionCandidates(item, resolvedName)).some(function(candidate) {
+                return !!existingNames[candidate];
+            })) {
                 resolvedName = this.buildIndexedFileName(filename, index);
                 index++;
             }
@@ -535,6 +584,7 @@ window.osFileOperations = {
 
         var mode = options.mode === 'move' ? 'move' : 'copy';
         var normalizedTarget = this.normalizeDirectoryPath(targetPath);
+        var isTrashTarget = normalizedTarget.toLowerCase() === this.normalizeDirectoryPath(this.TRASH_PATH).toLowerCase();
         var transferItems = [];
         var rejectedCount = 0;
 
@@ -596,7 +646,7 @@ window.osFileOperations = {
                     return;
                 }
 
-                this.copyItemRecursive(item.filepath, destPath, item.isDirectory, function(success) {
+                var finishTransfer = function(success) {
                     if (success) {
                         successCount++;
                         if (mode === 'move') {
@@ -607,7 +657,21 @@ window.osFileOperations = {
                     }
 
                     transferNext(index + 1);
-                });
+                };
+
+                this.copyItemRecursive(item.filepath, destPath, item.isDirectory, function(success) {
+                    if (success || !isTrashTarget) {
+                        finishTransfer(success);
+                        return;
+                    }
+
+                    var retryName = this.buildFallbackUniqueFileName(this.getItemFileName(item));
+                    var retryPath = normalizedTarget + retryName;
+
+                    this.copyItemRecursive(item.filepath, retryPath, item.isDirectory, function(retrySuccess) {
+                        finishTransfer(retrySuccess);
+                    });
+                }.bind(this));
             }.bind(this));
         }.bind(this);
 

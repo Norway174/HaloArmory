@@ -57,6 +57,7 @@ function NOTES.GetJavaScript()
 var notesApp = {
     currentFilePath: null,
     currentFileName: null,
+    currentFileExtension: '.txt',
     editor: null,
     preview: null,
     windowId: null,
@@ -64,7 +65,10 @@ var notesApp = {
     hasUnsavedChanges: false,
     savedContent: '',
     lastSaveFolder: 'C:/',
+    currentFileIsDetached: false,
+    missingBackingFile: false,
     closeAfterSave: false,  // Flag to close window after save completes
+    supportedExtensions: ['.txt', '.dat', '.json', '.xml', '.csv', '.dem', '.vcd', '.gma', '.mdl', '.phy', '.vvd', '.vtx', '.ani', '.vtf', '.vmt', '.png', '.jpg', '.jpeg', '.mp3', '.wav', '.ogg'],
     
     init: function(windowId) {
         this.windowId = windowId;
@@ -94,8 +98,9 @@ var notesApp = {
                     if (content === null || content === undefined) {
                         // File no longer exists - clear currentFilePath
                         // This will cause the next save to create a new file with the same name
-                        console.log('[Notes] Current file no longer exists, clearing currentFilePath. Next save will create new file.');
                         self.currentFilePath = null;
+                        self.missingBackingFile = true;
+                        self.currentFileIsDetached = false;
                         // Keep currentFileName so save will use the same name
                     }
                 });
@@ -105,6 +110,7 @@ var notesApp = {
         // Check for pending file open
         var self = this;
         setTimeout(function() {
+            var handledPendingOpen = false;
             var windowEl = document.getElementById(windowId);
             if (windowEl) {
                 var pendingFileId = windowEl.getAttribute('data-pending-file');
@@ -113,14 +119,22 @@ var notesApp = {
                     self.openFile(fileData.path, fileData.content, fileData.displayName, fileData.editMode);
                     delete window.pendingFileOpen[pendingFileId];
                     windowEl.removeAttribute('data-pending-file');
+                    handledPendingOpen = true;
                 }
             }
             
             // Also check for simple pendingFileOpen (backwards compatibility)
-            if (window.pendingFileOpen && window.pendingFileOpen.path && !window.pendingFileOpen[windowId]) {
+            if (window.pendingFileOpen &&
+                (window.pendingFileOpen.path !== undefined || window.pendingFileOpen.content !== undefined || window.pendingFileOpen.displayName !== undefined) &&
+                !window.pendingFileOpen[windowId]) {
                 var pfo = window.pendingFileOpen;
                 self.openFile(pfo.path, pfo.content, pfo.displayName, pfo.editMode);
                 window.pendingFileOpen = null;
+                handledPendingOpen = true;
+            }
+
+            if (handledPendingOpen) {
+                return;
             }
             
             // Check for program initial path (from osShell.openProgram)
@@ -134,7 +148,7 @@ var notesApp = {
                         if (content !== null && content !== undefined) {
                             // Get display name from path
                             var pathParts = filePath.split('/');
-                            var fileName = pathParts[pathParts.length - 1].replace(/\.txt$/, '');
+                            var fileName = self.splitFileName(pathParts[pathParts.length - 1]).baseName;
                             self.openFile(filePath, content, fileName, editMode);
                         } else {
                             // File doesn't exist or couldn't be read - open in edit mode
@@ -466,6 +480,67 @@ var notesApp = {
             }
         }
     },
+
+    normalizeExtension: function(extension) {
+        var ext = String(extension || '').trim().toLowerCase();
+        if (!ext) {
+            return '.txt';
+        }
+
+        if (ext.charAt(0) !== '.') {
+            ext = '.' + ext;
+        }
+
+        return this.supportedExtensions.indexOf(ext) >= 0 ? ext : '.txt';
+    },
+
+    splitFileName: function(filename) {
+        var rawName = String(filename || '').trim();
+        if (!rawName) {
+            return {
+                baseName: '',
+                extension: '.txt'
+            };
+        }
+
+        var lowerName = rawName.toLowerCase();
+        var matchedExtension = '';
+        for (var i = 0; i < this.supportedExtensions.length; i++) {
+            var extension = this.supportedExtensions[i];
+            if (lowerName.endsWith(extension) && extension.length > matchedExtension.length) {
+                matchedExtension = extension;
+            }
+        }
+
+        return {
+            baseName: matchedExtension ? rawName.slice(0, -matchedExtension.length) : rawName,
+            extension: this.normalizeExtension(matchedExtension || this.currentFileExtension || '.txt')
+        };
+    },
+
+    sanitizeSaveTarget: function(filePath, fallbackExtension) {
+        var pathParts = String(filePath || '').split('/');
+        var fileName = pathParts.pop() || 'untitled';
+        var parts = this.splitFileName(fileName);
+        var validation = window.osFilenameRules
+            ? window.osFilenameRules.validateBaseName(parts.baseName)
+            : { normalizedValue: parts.baseName };
+        var baseName = validation.normalizedValue;
+
+        if (!baseName) {
+            baseName = 'untitled';
+        }
+
+        var extension = this.normalizeExtension(parts.extension || fallbackExtension || '.txt');
+        var sanitizedFileName = baseName + extension;
+        var sanitizedPath = pathParts.join('/') + (pathParts.length > 0 ? '/' : '') + sanitizedFileName;
+
+        return {
+            filePath: sanitizedPath,
+            displayName: baseName,
+            extension: extension
+        };
+    },
     
     newNote: function() {
         if (this.hasUnsavedChanges) {
@@ -477,6 +552,9 @@ var notesApp = {
         this.editor.value = '';
         this.currentFilePath = null;
         this.currentFileName = null;
+        this.currentFileExtension = '.txt';
+        this.currentFileIsDetached = false;
+        this.missingBackingFile = false;
         this.savedContent = '';
         this.hasUnsavedChanges = false;
         this.updatePreview();
@@ -487,23 +565,20 @@ var notesApp = {
         // Ensure currentFilePath is valid and sanitized
         if (this.currentFilePath && this.currentFilePath.trim() !== '') {
             // Save to existing file - save directly without checking
-            console.log('[Notes] saveNote: Saving to existing file:', this.currentFilePath);
             var content = this.editor.value;
-            var displayName = this.currentFileName || this.currentFilePath.split('/').pop().replace(/\.txt$/, '');
+            var displayName = this.currentFileName || this.splitFileName(this.currentFilePath.split('/').pop()).baseName;
             this.writeFile(this.currentFilePath, content, displayName);
-        } else if (this.currentFileName) {
+        } else if (this.currentFileName && this.missingBackingFile) {
             // File was deleted/renamed but we have the name - create new file with same name
-            console.log('[Notes] saveNote: File no longer exists, creating new file with name:', this.currentFileName);
             var content = this.editor.value;
             var folder = this.lastSaveFolder || 'C:/';
             if (!folder.endsWith('/')) {
                 folder += '/';
             }
-            var filePath = folder + this.currentFileName;
+            var filePath = folder + this.currentFileName + (this.currentFileExtension || '.txt');
             this.writeFile(filePath, content, this.currentFileName);
         } else {
             // No current file - same as Save As
-            console.log('[Notes] saveNote: No currentFilePath, calling saveNoteAs. currentFilePath:', this.currentFilePath);
             this.saveNoteAs();
         }
     },
@@ -513,9 +588,10 @@ var notesApp = {
         if (window.osFileDialogs && window.osFileDialogs.showSaveAs) {
             window.osFileDialogs.showSaveAs({
                 title: 'Save Note As...',
-                initialPath: this.lastSaveFolder || 'C:/',
-                defaultName: (this.currentFileName || 'untitled') + '.txt',
-                allowedExtensions: ['.txt'],
+                initialPath: this.lastSaveFolder || 'C:/desktop/',
+                defaultName: this.currentFileName || 'untitled',
+                defaultExtension: this.currentFileExtension || '.txt',
+                allowedExtensions: this.supportedExtensions.slice(),
                 onSave: function(filePath, displayName) {
                     self.writeFile(filePath, self.editor.value, displayName);
                 }
@@ -543,31 +619,15 @@ var notesApp = {
             return;
         }
         
-        // NEW SYSTEM: .txt files are saved as plain text (no JSON wrapper)
-        // The filesystem bridge will handle sanitization and extension
-        // Note: filename will be forced lowercase and .txt extension added serverside
-        var contentToSave = content; // Plain text for .txt files
-        
-        // Sanitize the path to match what the filesystem bridge will actually save
-        // This ensures currentFilePath matches the actual file on disk
-        var pathParts = filePath.split('/');
-        var fileName = pathParts.pop() || 'untitled';
-        // Remove .txt extension if present (filesystem will add it)
-        fileName = fileName.replace(/\.txt$/i, '');
-        // Convert to lowercase and sanitize (same as filesystem bridge)
-        fileName = fileName.toLowerCase();
-        fileName = fileName.replace(/[^a-z0-9_\-]/g, '_');
-        fileName = fileName.replace(/^[_\-]+/, '').replace(/[_\-]+$/, '');
-        fileName = fileName.replace(/[_\-]{2,}/g, '_');
-        if (!fileName || fileName === '') {
+        var contentToSave = content;
+        var target = this.sanitizeSaveTarget(filePath, this.currentFileExtension || '.txt');
+        var sanitizedPath = target.filePath;
+
+        if (!target.displayName) {
             console.error('[Notes] writeFile: filename became empty after sanitization, original:', filePath);
             alert('Invalid file name. Cannot save file.');
             return;
         }
-        // Add .txt extension
-        fileName = fileName + '.txt';
-        // Rebuild path with sanitized filename
-        var sanitizedPath = pathParts.join('/') + (pathParts.length > 0 ? '/' : '') + fileName;
         
         // Ensure path starts with drive letter or ExternalDrive
         if (!sanitizedPath.match(/^([A-Za-z]:|ExternalDrive:)/)) {
@@ -576,13 +636,14 @@ var notesApp = {
             return;
         }
         
-        console.log('[Notes] writeFile: Saving to path:', sanitizedPath, 'content length:', contentToSave.length);
         window.filesystem.writeFile(sanitizedPath, contentToSave, function(success) {
             if (success) {
-                console.log('[Notes] writeFile: Successfully saved to:', sanitizedPath);
                 // Update current file info with sanitized path
                 self.currentFilePath = sanitizedPath;
-                self.currentFileName = displayName || fileName.replace(/\.txt$/, '');
+                self.currentFileName = displayName || target.displayName;
+                self.currentFileExtension = target.extension;
+                self.currentFileIsDetached = false;
+                self.missingBackingFile = false;
                 self.savedContent = content;
                 self.hasUnsavedChanges = false;
                 self.lastSaveFolder = sanitizedPath.substring(0, sanitizedPath.lastIndexOf('/') + 1);
@@ -717,7 +778,7 @@ var notesApp = {
             self.closeAfterSave = true;
             
             // Save first, then close (close will happen in writeFile callback)
-            if (self.currentFilePath || self.currentFileName) {
+            if (self.currentFilePath || (self.currentFileName && self.missingBackingFile)) {
                 var content = self.editor.value;
                 var displayName = self.currentFileName || 'untitled';
                 if (self.currentFilePath) {
@@ -727,7 +788,7 @@ var notesApp = {
                     if (!folder.endsWith('/')) {
                         folder += '/';
                     }
-                    var filePath = folder + self.currentFileName;
+                    var filePath = folder + self.currentFileName + (self.currentFileExtension || '.txt');
                     self.writeFile(filePath, content, displayName);
                 }
             } else {
@@ -778,27 +839,19 @@ var notesApp = {
         // .txt files contain plain text (no JSON wrapper)
         this.editor.value = content || '';
         
-        // Sanitize the path to match what the filesystem expects
-        // This ensures currentFilePath matches the actual file on disk
+        var target = null;
         if (filePath) {
-            var pathParts = filePath.split('/');
-            var fileName = pathParts.pop() || 'untitled';
-            // Remove .txt extension if present (we'll add it back)
-            fileName = fileName.replace(/\.txt$/i, '');
-            // Convert to lowercase and sanitize (same as filesystem bridge)
-            fileName = fileName.toLowerCase();
-            fileName = fileName.replace(/[^a-z0-9_\-]/g, '_');
-            fileName = fileName.replace(/^[_\-]+/, '').replace(/[_\-]+$/, '');
-            fileName = fileName.replace(/[_\-]{2,}/g, '_');
-            if (!fileName) fileName = 'untitled';
-            // Add .txt extension
-            fileName = fileName + '.txt';
-            // Rebuild path with sanitized filename
-            filePath = pathParts.join('/') + (pathParts.length > 0 ? '/' : '') + fileName;
+            target = this.sanitizeSaveTarget(filePath, '.txt');
+            filePath = target.filePath;
+        } else if (displayName) {
+            target = this.splitFileName(displayName);
         }
         
         this.currentFilePath = filePath;
-        this.currentFileName = displayName || (filePath ? filePath.split('/').pop().replace(/\.txt$/, '') : null);
+        this.currentFileName = displayName || (target ? (target.displayName || target.baseName) : null);
+        this.currentFileExtension = target ? this.normalizeExtension(target.extension) : '.txt';
+        this.currentFileIsDetached = !filePath && !!this.currentFileName;
+        this.missingBackingFile = false;
         this.savedContent = content || '';
         this.hasUnsavedChanges = false;
         

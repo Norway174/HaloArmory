@@ -257,7 +257,7 @@ function SHELL.GetCSS()
     display: grid;
     grid-template-columns: repeat(auto-fill, 80px);
     grid-auto-flow: column;
-    grid-template-rows: repeat(auto-fill, 100px);
+    grid-template-rows: repeat(auto-fill, 90px);
     padding: 20px;
     gap: 20px;
     height: calc(100vh - 60px);
@@ -266,6 +266,11 @@ function SHELL.GetCSS()
 
 .os-desktop-icon {
     width: 80px;
+    height: 90px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     text-align: center;
     cursor: pointer;
     user-select: none;
@@ -444,8 +449,8 @@ function SHELL.GetCSS()
 }
 
 .os-start-menu-programs {
-    max-height: 400px;
-    overflow-y: auto;
+    max-height: none;
+    overflow: visible;
     padding: 4px 0;
 }
 
@@ -461,6 +466,7 @@ function SHELL.GetCSS()
     align-items: center;
     gap: 12px;
     transition: background 0.15s ease;
+    position: relative;
 }
 
 .os-start-menu-item:hover {
@@ -477,6 +483,63 @@ function SHELL.GetCSS()
 .os-start-menu-item-label {
     font-size: 13px;
     flex: 1;
+}
+
+.os-start-menu-item-arrow {
+    font-size: 11px;
+    color: var(--color-text-muted, rgba(255, 255, 255, 0.7));
+    flex-shrink: 0;
+}
+
+.os-start-menu-item.has-submenu:hover .os-start-submenu {
+    display: flex;
+}
+
+.os-start-submenu {
+    display: none;
+    position: absolute;
+    top: -6px;
+    left: calc(100% - 6px);
+    min-width: 170px;
+    padding: 6px;
+    background: var(--color-start-menu-bg, rgba(45, 45, 45, 0.98));
+    border: 1px solid var(--color-window-border, rgba(255, 255, 255, 0.14));
+    border-radius: var(--radius-ui, 8px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    flex-direction: column;
+    gap: 4px;
+    z-index: 50;
+}
+
+.os-start-submenu-item {
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-ui-small, 4px);
+    color: var(--color-text-primary, #ffffff);
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.os-start-submenu-item:hover {
+    background: var(--color-icon-hover-bg, rgba(74, 158, 255, 0.2));
+}
+
+.os-start-submenu-item-icon {
+    width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+    font-size: 15px;
+}
+
+.os-start-submenu-item-label {
+    flex: 1;
+    font-size: 13px;
 }
 
 .os-start-menu-separator {
@@ -496,19 +559,65 @@ function SHELL.GetCSS()
     cursor: pointer;
     user-select: none;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .os-item-icon {
+    width: 48px;
+    height: 48px;
+    min-height: 48px;
     font-size: 48px;
-    margin-bottom: 5px;
+    margin: 0 auto 5px;
     text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.os-item-icon.os-item-icon-preview {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    overflow: hidden;
+    box-sizing: border-box;
+    line-height: 0;
+    padding: 0;
+    border-radius: calc(var(--radius-ui-small, 4px) + 1px);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 28px;
+}
+
+.os-item-icon-image-preview {
+    max-width: 100%;
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center center;
+    display: block;
+    margin: auto;
 }
 
 .os-item-label {
     font-size: 12px;
-    word-wrap: break-word;
+    line-height: 16px;
+    min-height: 16px;
+    max-height: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-wrap: normal;
     text-align: center;
     color: var(--color-text-primary, #ffffff);
+    width: 100%;
 }
 
 .os-file-item.os-item-renaming {

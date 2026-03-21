@@ -73,7 +73,19 @@ function pathForRefresh(path) {
  */
 function cleanDisplayName(name) {
     if (!name) return '';
-    return name.replace(/\.(txt|dat)$/, '').replace(/\.shortcut$/, '');
+    if (/\.shortcut\.dat$/i.test(name)) {
+        return name.replace(/\.shortcut\.dat$/i, '');
+    }
+    if (/\.image\.dat$/i.test(name)) {
+        return name.replace(/\.image\.dat$/i, '.image').replace(/\.(png|jpg|jpeg)\.image$/i, '.image');
+    }
+    if (/\.txt$/i.test(name)) {
+        return name.replace(/\.txt$/i, '');
+    }
+    if (/^config\.dat$/i.test(name)) {
+        return '.config';
+    }
+    return String(name);
 }
 
 /**
@@ -205,6 +217,7 @@ window.isDirectoryPath = function(path) {
 window.getFileTypeFromPath = function(path) {
     if (!path) return 'unknown';
     if (path.endsWith('.shortcut.dat')) return 'shortcut';
+    if (path.endsWith('.image.dat')) return 'image';
     if (path.endsWith('config.dat')) return 'config';
     if (path.endsWith('.txt')) return 'text';
     if (path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image';
@@ -269,7 +282,7 @@ window.osFilenameRules = {
     MAX_LENGTH: 32,
 
     stripKnownExtension: function(name) {
-        return String(name || '').replace(/(\.shortcut\.dat|\.txt|\.dat|\.png|\.jpg|\.jpeg)$/i, '');
+        return String(name || '').replace(/(\.shortcut\.dat|\.image\.dat|\.txt|\.dat|\.json|\.xml|\.csv|\.dem|\.vcd|\.gma|\.mdl|\.phy|\.vvd|\.vtx|\.ani|\.vtf|\.vmt|\.png|\.jpg|\.jpeg|\.mp3|\.wav|\.ogg)$/i, '');
     },
 
     normalizeEditableBaseName: function(name) {

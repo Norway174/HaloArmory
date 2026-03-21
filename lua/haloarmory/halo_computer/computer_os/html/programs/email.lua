@@ -5,12 +5,16 @@ function EMAIL.GetContent()
     return [[
 <div class="program-email">
     <div class="email-sidebar">
-        <button class="email-compose-btn btn btn-primary">Compose</button>
+        <button class="email-compose-btn">Compose</button>
         <div class="email-folders">
-            <button class="email-folder active" data-folder="inbox">Inbox</button>
+            <button class="email-folder active" data-folder="inbox"><span>Inbox</span><span class="email-folder-badge" style="display: none;">0</span></button>
             <button class="email-folder" data-folder="sent">Sent</button>
             <button class="email-folder" data-folder="drafts">Drafts</button>
             <button class="email-folder" data-folder="trash">Trash</button>
+        </div>
+        <div class="email-sidebar-bottom">
+            <div class="email-storage-widget"></div>
+            <div class="email-user-widget"></div>
         </div>
     </div>
     <div class="email-main">
@@ -100,6 +104,8 @@ var emailApp = {
                 trash: []
             },
             unreadCount: 0,
+            storageUsed: 0,
+            storageLimit: 0,
             selectedIds: {},
             detailMessage: null,
             detailFolder: 'inbox',
@@ -109,6 +115,8 @@ var emailApp = {
             drafts: [],
             compose: this.createEmptyComposeState(),
             recipientQuery: '',
+            recipientDropdownOpen: false,
+            recipientBlurTimer: null,
             autosaveTimer: null
         };
 
@@ -189,6 +197,9 @@ var emailApp = {
         if (instance.autosaveTimer) {
             clearTimeout(instance.autosaveTimer);
         }
+        if (instance.recipientBlurTimer) {
+            clearTimeout(instance.recipientBlurTimer);
+        }
 
         delete this.instances[windowId];
     },
@@ -259,13 +270,6 @@ var emailApp = {
         instance.selectedIds = {};
         instance.loading = true;
 
-        var root = this.getRootElement(windowId);
-        if (root) {
-            root.querySelectorAll('.email-folder').forEach(function(button) {
-                button.classList.toggle('active', button.getAttribute('data-folder') === folder);
-            });
-        }
-
         this.render(windowId);
 
         if (folder === 'drafts') {
@@ -284,6 +288,8 @@ var emailApp = {
             if (!current) return;
             current.messagesByFolder[folder] = Array.isArray(payload.messages) ? payload.messages : [];
             current.unreadCount = payload.unreadCount || 0;
+            current.storageUsed = typeof payload.storageUsed === 'number' ? payload.storageUsed : current.storageUsed;
+            current.storageLimit = typeof payload.storageLimit === 'number' ? payload.storageLimit : current.storageLimit;
             current.loading = false;
             this.render(windowId);
         }.bind(this));
@@ -310,6 +316,7 @@ var emailApp = {
         }
 
         instance.recipientQuery = '';
+        instance.recipientDropdownOpen = false;
         instance.currentView = 'compose';
         instance.loading = false;
         this.render(windowId);
@@ -324,15 +331,22 @@ var emailApp = {
         }
     },
 
-    onComposeChanged: function(windowId) {
+    onComposeChanged: function(windowId, options) {
         var instance = this.getInstance(windowId);
         if (!instance) {
             return;
         }
 
+        options = options || {};
         instance.compose.dirty = true;
         this.scheduleDraftSave(windowId);
-        this.render(windowId);
+        if (!options.skipRender) {
+            this.render(windowId);
+
+            if (options.refocusRecipient) {
+                this.focusRecipientInput(windowId);
+            }
+        }
     },
 
     scheduleDraftSave: function(windowId) {
@@ -417,6 +431,9 @@ var emailApp = {
 
             if (payload.success && payload.email) {
                 current.detailMessage = payload.email;
+                if (typeof payload.unreadCount === 'number') {
+                    current.unreadCount = payload.unreadCount;
+                }
                 this.patchMessageSummary(windowId, payload.email);
             }
 
@@ -458,10 +475,9 @@ var emailApp = {
 
             var attachment = {
                 filepath: item.filepath,
-                filename: item.filename || window.getFileNameFromPath(item.filepath),
-                displayName: item.displayName || item.name || item.filename || window.getFileNameFromPath(item.filepath),
+                filename: item.filename || item.displayName || item.name || window.getFileNameFromPath(item.filepath),
+                displayName: item.filename || item.displayName || item.name || window.getFileNameFromPath(item.filepath),
                 filetype: item.filetype || window.getFileTypeFromPath(item.filepath),
-                sourcePath: item.filepath || '',
                 content: null
             };
 
@@ -675,6 +691,97 @@ var emailApp = {
         }).join('\n');
     },
 
+    focusRecipientInput: function(windowId) {
+        window.setTimeout(function() {
+            var root = this.getRootElement(windowId);
+            var input = root && root.querySelector('.email-to-input');
+            if (!input) {
+                return;
+            }
+
+            input.focus();
+            var valueLength = String(input.value || '').length;
+            if (input.setSelectionRange) {
+                input.setSelectionRange(valueLength, valueLength);
+            }
+        }.bind(this), 0);
+    },
+
+    setRecipientDropdownOpen: function(windowId, isOpen) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        if (instance.recipientBlurTimer) {
+            clearTimeout(instance.recipientBlurTimer);
+            instance.recipientBlurTimer = null;
+        }
+
+        instance.recipientDropdownOpen = isOpen === true;
+        this.refreshRecipientDropdown(windowId);
+    },
+
+    scheduleRecipientDropdownClose: function(windowId) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        if (instance.recipientBlurTimer) {
+            clearTimeout(instance.recipientBlurTimer);
+        }
+
+        instance.recipientBlurTimer = window.setTimeout(function() {
+            var current = this.getInstance(windowId);
+            if (!current) {
+                return;
+            }
+
+            current.recipientBlurTimer = null;
+            current.recipientDropdownOpen = false;
+            this.refreshRecipientDropdown(windowId);
+        }.bind(this), 120);
+    },
+
+    renderRecipientDropdownContents: function(instance) {
+        var options = instance.recipientDropdownOpen ? this.getRecipientOptions(instance, instance.recipientQuery) : [];
+        var html = '';
+
+        if (options.length) {
+            options.forEach(function(option) {
+                var favorite = this.isFavorite(instance, option);
+                html += '<div class="email-recipient-option" data-recipient-key="' + this.escapeHtml(option.steamID64 || option.steamID || '') + '">' +
+                    '<button class="email-favorite-toggle" data-favorite-key="' + this.escapeHtml(option.steamID64 || option.steamID || '') + '">' + (favorite ? '★' : '☆') + '</button>' +
+                    '<div class="email-recipient-option-main">' +
+                        '<div class="email-recipient-option-name">' + this.escapeHtml(option.nickname || option.steamID || option.steamID64 || 'Unknown') + '</div>' +
+                        '<div class="email-recipient-option-meta">' + this.escapeHtml(option.steamID || option.steamID64 || '') + '</div>' +
+                    '</div>' +
+                '</div>';
+            }.bind(this));
+        } else {
+            html = '<div class="email-recipient-empty">Type a SteamID or pick from your contacts.</div>';
+        }
+
+        return html;
+    },
+
+    refreshRecipientDropdown: function(windowId) {
+        var root = this.getRootElement(windowId);
+        var instance = this.getInstance(windowId);
+        if (!root || !instance || instance.currentView !== 'compose') {
+            return;
+        }
+
+        var dropdown = root.querySelector('.email-recipient-dropdown');
+        if (!dropdown) {
+            return;
+        }
+
+        dropdown.classList.toggle('is-open', instance.recipientDropdownOpen === true);
+        dropdown.innerHTML = this.renderRecipientDropdownContents(instance);
+    },
+
     commitRecipientInput: function(windowId) {
         var instance = this.getInstance(windowId);
         var root = this.getRootElement(windowId);
@@ -723,10 +830,9 @@ var emailApp = {
             return;
         }
 
-        this.addRecipient(windowId, selected);
-        input.value = '';
         instance.recipientQuery = '';
-        this.render(windowId);
+        instance.recipientDropdownOpen = true;
+        this.addRecipient(windowId, selected, { refocusRecipient: true });
     },
 
     isLikelySteamId: function(value) {
@@ -737,7 +843,7 @@ var emailApp = {
         return /^\d{17}$/.test(String(value || ''));
     },
 
-    addRecipient: function(windowId, contact) {
+    addRecipient: function(windowId, contact, options) {
         var instance = this.getInstance(windowId);
         if (!instance || !contact) {
             return;
@@ -762,7 +868,7 @@ var emailApp = {
             nickname: contact.nickname || contact.steamID || contact.steamID64 || 'Unknown Contact'
         });
 
-        this.onComposeChanged(windowId);
+        this.onComposeChanged(windowId, options);
     },
 
     removeRecipient: function(windowId, key) {
@@ -798,7 +904,7 @@ var emailApp = {
             var current = this.getInstance(windowId);
             if (!current) return;
             current.favorites = Array.isArray(payload.favorites) ? payload.favorites : [];
-            this.render(windowId);
+            this.refreshRecipientDropdown(windowId);
         }.bind(this));
     },
 
@@ -956,10 +1062,9 @@ var emailApp = {
         attachments.forEach(function(attachment, index) {
             var finalize = function(content) {
                 resolved[index] = {
-                    displayName: attachment.displayName,
-                    filename: attachment.filename,
+                    displayName: attachment.filename || attachment.displayName,
+                    filename: attachment.filename || attachment.displayName,
                     filetype: attachment.filetype,
-                    sourcePath: attachment.sourcePath || attachment.filepath || '',
                     content: content || ''
                 };
 
@@ -988,12 +1093,23 @@ var emailApp = {
 
     toggleComposePreview: function(windowId) {
         var instance = this.getInstance(windowId);
-        if (!instance) {
+        var root = this.getRootElement(windowId);
+        if (!instance || !root) {
             return;
         }
 
+        var composeBody = root.querySelector('.email-compose-body');
+        var scrollTop = composeBody ? composeBody.scrollTop : 0;
         instance.compose.previewMode = !instance.compose.previewMode;
         this.render(windowId);
+
+        window.setTimeout(function() {
+            var refreshedRoot = this.getRootElement(windowId);
+            var refreshedBody = refreshedRoot && refreshedRoot.querySelector('.email-compose-body');
+            if (refreshedBody) {
+                refreshedBody.scrollTop = scrollTop;
+            }
+        }.bind(this), 0);
     },
 
     formatComposeText: function(windowId, format) {
@@ -1042,7 +1158,7 @@ var emailApp = {
         editor.focus();
         editor.setSelectionRange(start + replacement.length, start + replacement.length);
         instance.compose.bodyMarkdown = editor.value;
-        this.onComposeChanged(windowId);
+        this.onComposeChanged(windowId, { skipRender: true });
     },
 
     render: function(windowId) {
@@ -1051,6 +1167,9 @@ var emailApp = {
         if (!instance || !viewRoot) {
             return;
         }
+
+        this.updateSidebarState(windowId);
+        this.updateSidebarMeta(windowId);
 
         if (instance.currentView === 'compose') {
             viewRoot.innerHTML = this.renderComposeView(instance);
@@ -1068,10 +1187,103 @@ var emailApp = {
         this.bindFolderEvents(windowId);
     },
 
+    getSelfProfile: function(instance) {
+        var selfProfile = null;
+        (instance.onlinePlayers || []).some(function(playerInfo) {
+            if (playerInfo && playerInfo.isSelf) {
+                selfProfile = playerInfo;
+                return true;
+            }
+            return false;
+        });
+
+        return selfProfile || {
+            nickname: 'Local User',
+            steamID64: '',
+            steamID: ''
+        };
+    },
+
+    getInitials: function(label) {
+        var words = String(label || '').trim().split(/\s+/).filter(Boolean);
+        if (!words.length) {
+            return 'U';
+        }
+
+        if (words.length === 1) {
+            return words[0].slice(0, 2).toUpperCase();
+        }
+
+        return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+    },
+
+    updateSidebarMeta: function(windowId) {
+        var instance = this.getInstance(windowId);
+        var root = this.getRootElement(windowId);
+        if (!instance || !root) {
+            return;
+        }
+
+        var storageNode = root.querySelector('.email-storage-widget');
+        if (storageNode) {
+            var used = Math.max(0, parseInt(instance.storageUsed || 0, 10) || 0);
+            var limit = Math.max(1, parseInt(instance.storageLimit || 0, 10) || 1);
+            var usagePercent = Math.min(100, Math.max(0, (used / limit) * 100));
+
+            storageNode.innerHTML = '' +
+                '<div class="email-storage-inline">' +
+                    '<div class="email-sidebar-card-label">Mailbox Storage</div>' +
+                    '<div class="email-storage-count">' + this.escapeHtml(String(used)) + ' / ' + this.escapeHtml(String(limit)) + '</div>' +
+                    '<div class="email-storage-bar"><span style="width: ' + usagePercent.toFixed(2) + '%;"></span></div>' +
+                '</div>';
+        }
+
+        var userNode = root.querySelector('.email-user-widget');
+        if (userNode) {
+            var selfProfile = this.getSelfProfile(instance);
+            var displayName = selfProfile.nickname || selfProfile.steamID || selfProfile.steamID64 || 'Local User';
+            var subtitle = selfProfile.steamID || selfProfile.steamID64 || 'Offline Profile';
+
+            userNode.innerHTML = '' +
+                '<div class="email-sidebar-card email-user-card">' +
+                    '<div class="email-user-name">' + this.escapeHtml(displayName) + '</div>' +
+                    '<div class="email-user-subtitle">' + this.escapeHtml(subtitle) + '</div>' +
+                '</div>';
+        }
+    },
+
+    updateSidebarState: function(windowId) {
+        var instance = this.getInstance(windowId);
+        var root = this.getRootElement(windowId);
+        if (!instance || !root) {
+            return;
+        }
+
+        var composeBtn = root.querySelector('.email-compose-btn');
+        if (composeBtn) {
+            composeBtn.classList.toggle('active', instance.currentView === 'compose');
+        }
+
+        root.querySelectorAll('.email-folder').forEach(function(button) {
+            var isActive = instance.currentView !== 'compose' && button.getAttribute('data-folder') === instance.currentFolder;
+            button.classList.toggle('active', isActive);
+        });
+
+        var inboxButton = root.querySelector('.email-folder[data-folder="inbox"]');
+        if (inboxButton) {
+            var badge = inboxButton.querySelector('.email-folder-badge');
+            if (badge) {
+                var unread = Math.max(0, parseInt(instance.unreadCount || 0, 10) || 0);
+                badge.textContent = String(unread);
+                badge.style.display = unread > 0 ? 'inline-block' : 'none';
+            }
+        }
+    },
+
     renderFolderView: function(instance) {
         var messages = this.getCurrentFolderMessages(instance);
         var selectedCount = Object.keys(instance.selectedIds || {}).length;
-        var allowReadButtons = instance.currentFolder !== 'drafts' && instance.currentFolder !== 'sent';
+        var allowReadButtons = instance.currentFolder !== 'drafts' && instance.currentFolder !== 'sent' && instance.currentFolder !== 'trash';
         var title = this.getFolderTitle(instance.currentFolder);
 
         var html = '' +
@@ -1153,7 +1365,7 @@ var emailApp = {
     },
 
     renderComposeView: function(instance) {
-        var options = this.getRecipientOptions(instance, instance.recipientQuery);
+        var options = instance.recipientDropdownOpen ? this.getRecipientOptions(instance, instance.recipientQuery) : [];
         var html = '' +
             '<div class="email-panel email-compose-panel">' +
                 '<div class="email-compose-header">' +
@@ -1162,12 +1374,8 @@ var emailApp = {
                         '<div class="email-compose-title">' + (instance.compose.draftId ? 'Edit Draft' : 'New Message') + '</div>' +
                         '<div class="email-compose-subtitle">' + this.escapeHtml(this.getFolderTitle(instance.currentFolder)) + '</div>' +
                     '</div>' +
-                    '<div class="email-compose-header-actions">' +
-                        '<button class="email-toolbar-btn email-save-draft-btn">Save Draft</button>' +
-                        '<button class="email-toolbar-btn email-preview-toggle-btn">' + (instance.compose.previewMode ? 'Edit' : 'Preview') + '</button>' +
-                        '<button class="email-toolbar-btn email-send-btn">Send</button>' +
-                    '</div>' +
                 '</div>' +
+                '<div class="email-compose-body">' +
                 '<div class="email-compose-fields">' +
                     '<div class="email-field">' +
                         '<span>To</span>' +
@@ -1185,7 +1393,7 @@ var emailApp = {
         html += '</div>' +
                             '<input type="text" class="email-input email-to-input" placeholder="SteamID, SteamID64, or contact name" value="' + this.escapeHtml(instance.recipientQuery) + '" />' +
                         '</div>' +
-                        '<div class="email-recipient-dropdown ' + (instance.recipientQuery !== '' || options.length ? 'is-open' : '') + '">';
+                        '<div class="email-recipient-dropdown ' + (instance.recipientDropdownOpen ? 'is-open' : '') + '">';
 
         if (options.length) {
             options.forEach(function(option) {
@@ -1248,7 +1456,18 @@ var emailApp = {
             html += '<textarea class="email-body-input" placeholder="Write your message here... Markdown is supported.">' + this.escapeHtml(instance.compose.bodyMarkdown) + '</textarea>';
         }
 
-        html += '</div></div>';
+        html += '</div></div>' +
+                '<div class="email-compose-footer">' +
+                    '<div class="email-compose-footer-actions">' +
+                        '<div class="email-compose-footer-left">' +
+                            '<button class="email-toolbar-btn email-preview-toggle-btn">' + (instance.compose.previewMode ? 'Edit' : 'Preview') + '</button>' +
+                        '</div>' +
+                        '<div class="email-compose-footer-right">' +
+                        '<button class="email-toolbar-btn email-save-draft-btn">Save Draft</button>' +
+                        '<button class="email-toolbar-btn email-send-btn">Send</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div></div>';
         return html;
     },
 
@@ -1416,13 +1635,29 @@ var emailApp = {
         if (toInput) {
             toInput.addEventListener('input', function() {
                 instance.recipientQuery = toInput.value;
-                this.render(windowId);
+                if (!instance.recipientDropdownOpen) {
+                    instance.recipientDropdownOpen = true;
+                }
+                this.refreshRecipientDropdown(windowId);
+            }.bind(this));
+
+            toInput.addEventListener('focus', function() {
+                this.setRecipientDropdownOpen(windowId, true);
+            }.bind(this));
+
+            toInput.addEventListener('blur', function() {
+                this.scheduleRecipientDropdownClose(windowId);
             }.bind(this));
 
             toInput.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter' || e.key === 'Tab' || e.key === ',') {
                     e.preventDefault();
                     this.commitRecipientInput(windowId);
+                    return;
+                }
+
+                if (e.key === 'Escape') {
+                    this.setRecipientDropdownOpen(windowId, false);
                 }
             }.bind(this));
         }
@@ -1431,7 +1666,7 @@ var emailApp = {
         if (subjectInput) {
             subjectInput.addEventListener('input', function() {
                 instance.compose.subject = subjectInput.value;
-                this.onComposeChanged(windowId);
+                this.onComposeChanged(windowId, { skipRender: true });
             }.bind(this));
         }
 
@@ -1439,7 +1674,7 @@ var emailApp = {
         if (bodyInput) {
             bodyInput.addEventListener('input', function() {
                 instance.compose.bodyMarkdown = bodyInput.value;
-                this.onComposeChanged(windowId);
+                this.onComposeChanged(windowId, { skipRender: true });
             }.bind(this));
         }
 
@@ -1455,9 +1690,43 @@ var emailApp = {
             }.bind(this));
         }.bind(this));
 
-        root.querySelectorAll('.email-recipient-option').forEach(function(optionNode) {
-            optionNode.addEventListener('click', function(e) {
-                if (e.target.closest('.email-favorite-toggle')) {
+        var recipientBox = root.querySelector('.email-recipient-input-box');
+        if (recipientBox) {
+            recipientBox.addEventListener('click', function(e) {
+                if (e.target.closest('.email-recipient-chip-remove')) {
+                    return;
+                }
+
+                this.focusRecipientInput(windowId);
+            }.bind(this));
+        }
+
+        var recipientDropdown = root.querySelector('.email-recipient-dropdown');
+        if (recipientDropdown) {
+            recipientDropdown.addEventListener('mousedown', function(e) {
+                if (e.target.closest('.email-recipient-option') || e.target.closest('.email-favorite-toggle')) {
+                    e.preventDefault();
+                }
+            });
+
+            recipientDropdown.addEventListener('click', function(e) {
+                var favoriteButton = e.target.closest('.email-favorite-toggle');
+                if (favoriteButton) {
+                    e.stopPropagation();
+
+                    var favoriteKey = favoriteButton.getAttribute('data-favorite-key');
+                    var favoriteContact = this.getRecipientOptions(instance, instance.recipientQuery).find(function(option) {
+                        return String(option.steamID64 || option.steamID || '') === String(favoriteKey || '');
+                    });
+
+                    if (favoriteContact) {
+                        this.toggleFavorite(windowId, favoriteContact);
+                    }
+                    return;
+                }
+
+                var optionNode = e.target.closest('.email-recipient-option');
+                if (!optionNode) {
                     return;
                 }
 
@@ -1467,25 +1736,12 @@ var emailApp = {
                 });
 
                 if (contact) {
-                    this.addRecipient(windowId, contact);
                     instance.recipientQuery = '';
-                    this.render(windowId);
+                    instance.recipientDropdownOpen = true;
+                    this.addRecipient(windowId, contact, { refocusRecipient: true });
                 }
             }.bind(this));
-        }.bind(this));
-
-        root.querySelectorAll('.email-favorite-toggle').forEach(function(button) {
-            button.addEventListener('click', function(e) {
-                e.stopPropagation();
-                var key = button.getAttribute('data-favorite-key');
-                var contact = this.getRecipientOptions(instance, instance.recipientQuery).find(function(option) {
-                    return String(option.steamID64 || option.steamID || '') === String(key || '');
-                });
-                if (contact) {
-                    this.toggleFavorite(windowId, contact);
-                }
-            }.bind(this));
-        }.bind(this));
+        }
 
         root.querySelectorAll('.email-attachment-remove-btn').forEach(function(button) {
             button.addEventListener('click', function() {
@@ -1544,7 +1800,7 @@ var emailApp = {
 
     exportDetailAttachment: function(windowId, attachmentIndex, openAfterSave) {
         var instance = this.getInstance(windowId);
-        if (!instance || !instance.detailMessage || !window.filesystem) {
+        if (!instance || !instance.detailMessage) {
             return;
         }
 
@@ -1554,29 +1810,109 @@ var emailApp = {
             return;
         }
 
-        var folderName = openAfterSave ? 'opened' : 'saved';
-        var targetPath = 'ExternalDrive:/email_attachments/' + folderName + '/' + this.sanitizePathToken(instance.detailMessage.id || 'message') + '_' + this.sanitizePathToken(attachment.displayName || attachment.filename || 'attachment.txt');
+        if (openAfterSave) {
+            this.openAttachmentInEditor(attachment);
+            return;
+        }
 
-        window.filesystem.writeFile(targetPath, attachment.content || '', function(success) {
-            if (!success) {
-                if (window.osErrorHandler) {
-                    window.osErrorHandler.showNotification('Failed to export attachment.', 'error', 2400);
-                }
-                return;
-            }
-
-            if (openAfterSave && window.osShell && window.osShell.handleFileOpen) {
-                window.osShell.handleFileOpen(targetPath, {
-                    filetype: attachment.filetype || window.getFileTypeFromPath(targetPath)
-                }, false);
-            } else if (window.osErrorHandler) {
-                window.osErrorHandler.showNotification('Attachment saved to ExternalDrive:/email_attachments/' + folderName, 'success', 2200);
-            }
-        });
+        this.saveAttachmentAs(attachment);
     },
 
     sanitizePathToken: function(value) {
         return String(value || 'item').toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+    },
+
+    stripExtension: function(fileName) {
+        return String(fileName || '').replace(/\.[^.]+$/, '') || 'untitled';
+    },
+
+    isImageAttachment: function(attachment) {
+        if (!attachment) {
+            return false;
+        }
+
+        var fileType = String(attachment.filetype || '').toLowerCase();
+        var displayName = String(attachment.displayName || attachment.filename || '').toLowerCase();
+
+        return fileType === 'image' ||
+            /\.image(\.dat)?$/i.test(displayName) ||
+            /\.(png|jpg|jpeg)$/i.test(displayName);
+    },
+
+    getAttachmentDisplayName: function(attachment) {
+        var displayName = String((attachment && (attachment.displayName || attachment.filename)) || 'attachment').trim();
+        if (!displayName) {
+            displayName = 'attachment';
+        }
+
+        if (this.isImageAttachment(attachment) && !/\.image$/i.test(displayName)) {
+            displayName = displayName.replace(/\.image\.dat$/i, '.image');
+            displayName = displayName.replace(/\.(png|jpg|jpeg)$/i, '.image');
+            if (!/\.image$/i.test(displayName)) {
+                displayName += '.image';
+            }
+        }
+
+        return displayName;
+    },
+
+    openAttachmentInEditor: function(attachment) {
+        if (!window.osShell || !window.osShell.openProgram) {
+            return;
+        }
+
+        if (this.isImageAttachment(attachment)) {
+            window.pendingFileOpen = {
+                path: null,
+                content: attachment.content || '',
+                displayName: this.getAttachmentDisplayName(attachment),
+                editMode: true
+            };
+
+            window.osShell.openProgram('paint');
+            return;
+        }
+
+        window.pendingFileOpen = {
+            path: null,
+            content: attachment.content || '',
+            displayName: this.stripExtension(this.getAttachmentDisplayName(attachment)),
+            editMode: true
+        };
+
+        window.osShell.openProgram('notes');
+    },
+
+    saveAttachmentAs: function(attachment) {
+        if (!window.osFileDialogs || !window.osFileDialogs.showSaveAs || !window.filesystem) {
+            if (window.osErrorHandler) {
+                window.osErrorHandler.showNotification('Save dialog is not available.', 'error', 2400);
+            }
+            return;
+        }
+
+        var defaultName = this.getAttachmentDisplayName(attachment);
+        var nameParts = window.osFileDialogs.splitFileName(defaultName);
+        var defaultExtension = this.isImageAttachment(attachment) ? '.image' : (nameParts.extension || '.txt');
+        window.osFileDialogs.showSaveAs({
+            title: 'Save Attachment As...',
+            initialPath: 'C:/desktop/',
+            defaultName: nameParts.baseName || 'attachment',
+            defaultExtension: defaultExtension,
+            allowedExtensions: [defaultExtension],
+            confirmLabel: 'Save',
+            onSave: function(filePath) {
+                window.filesystem.writeFile(filePath, attachment.content || '', function(success) {
+                    if (window.osErrorHandler) {
+                        if (success) {
+                            window.osErrorHandler.showNotification('Attachment saved.', 'success', 2200);
+                        } else {
+                            window.osErrorHandler.showNotification('Failed to save attachment.', 'error', 2400);
+                        }
+                    }
+                });
+            }
+        });
     },
 
     formatContact: function(contact) {
@@ -1639,17 +1975,17 @@ function EMAIL.GetCSS()
     display: flex;
     height: 100%;
     min-height: 0;
-    background: var(--color-window-bg, #1f1f1f);
+    background: var(--color-window-bg, #2d2d2d);
 }
 
 .email-sidebar {
-    width: 220px;
-    padding: 14px;
-    border-right: 1px solid #323232;
-    background: linear-gradient(180deg, #303846, #252b35);
+    width: 170px;
+    padding: 12px;
+    border-right: 1px solid var(--color-window-border, #444);
+    background: var(--color-sidebar-bg, #202020);
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 8px;
 }
 
 .email-compose-btn,
@@ -1664,16 +2000,33 @@ function EMAIL.GetCSS()
 
 .email-compose-btn {
     width: 100%;
-    padding: 11px 14px;
-    border: 1px solid #4d8fca;
-    border-radius: 6px;
-    background: #2b6ba3;
-    color: #fff;
+    padding: 10px 12px;
+    text-align: left;
+    border: 1px solid var(--color-secondary-button-border, #3f4a59);
+    border-radius: var(--radius-ui, 6px);
+    background: var(--color-secondary-button-bg, #566375);
+    color: var(--color-text-on-secondary-button, #ffffff);
     cursor: pointer;
+    box-shadow: none;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
 }
 
 .email-compose-btn:hover {
-    background: #3379b7;
+    background: var(--color-secondary-button-hover-bg, #465364) !important;
+    border-color: var(--color-highlight, #4a9eff) !important;
+    box-shadow: 0 0 0 1px var(--color-highlight, #4a9eff) !important;
+}
+
+.email-compose-btn.active {
+    background: var(--color-secondary-button-active-bg, #4f5b6c);
+    border-color: var(--color-secondary-button-border, #3f4a59);
+    color: var(--color-text-on-secondary-button, #ffffff);
+}
+
+.email-compose-btn.active:hover {
+    background: var(--color-secondary-button-active-hover-bg, #404c5c) !important;
+    border-color: var(--color-highlight, #4a9eff) !important;
+    box-shadow: 0 0 0 1px var(--color-highlight, #4a9eff) !important;
 }
 
 .email-folders {
@@ -1682,24 +2035,114 @@ function EMAIL.GetCSS()
     gap: 6px;
 }
 
+.email-sidebar-bottom {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 10px;
+}
+
+.email-sidebar-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-ui, 6px);
+    background: rgba(0, 0, 0, 0.14);
+    padding: 10px;
+}
+
+.email-storage-inline {
+    padding: 2px 2px 0;
+}
+
+.email-sidebar-card-label {
+    color: var(--color-text-secondary, #aeb8c7);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.email-storage-count {
+    margin-top: 5px;
+    color: var(--color-text-primary, #ffffff);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.email-storage-bar {
+    margin-top: 8px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+}
+
+.email-storage-bar span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--color-highlight, #4a9eff);
+}
+
+.email-user-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.email-user-name {
+    color: var(--color-text-primary, #ffffff);
+    font-size: 13px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.email-user-subtitle {
+    margin-top: 3px;
+    color: var(--color-text-secondary, #aeb8c7);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .email-folder {
     width: 100%;
-    padding: 9px 12px;
-    text-align: left;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    background: transparent;
-    color: #d5d5d5;
+    padding: 10px 12px;
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: var(--radius-ui, 6px);
+    background: var(--color-button-muted-bg, #2e2e2e);
+    color: var(--color-text-primary, #fff);
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    text-align: left;
 }
 
 .email-folder:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--color-button-hover-bg, #3a3a3a);
+    border-color: var(--color-accent, #555);
 }
 
 .email-folder.active {
-    background: #007acc;
-    color: #fff;
+    background: var(--color-button-bg, #3b74b5);
+    border-color: var(--color-accent, #5e9be3);
+    color: var(--color-text-on-button, #ffffff);
+}
+
+.email-folder-badge {
+    min-width: 22px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.22);
+    color: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+    flex-shrink: 0;
 }
 
 .email-main {
@@ -1708,7 +2151,7 @@ function EMAIL.GetCSS()
     min-height: 0;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(180deg, #1f2329, #181b20);
+    background: var(--color-window-bg, #252525);
 }
 
 .email-view-root {
@@ -1723,16 +2166,16 @@ function EMAIL.GetCSS()
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: #9ea7b3;
+    color: var(--color-text-secondary, #9a9a9a);
     padding: 20px;
     text-align: center;
 }
 
 .email-loading-title,
 .email-empty-title {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 700;
-    color: #d4d4d4;
+    color: var(--color-text-primary, #ffffff);
     margin-bottom: 8px;
 }
 
@@ -1749,9 +2192,10 @@ function EMAIL.GetCSS()
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 14px 16px;
-    border-bottom: 1px solid #2f3137;
-    background: #242830;
+    padding: 12px;
+    border-bottom: 1px solid var(--color-window-border, #444);
+    background: var(--color-window-bg, #334055);
+    color: var(--color-text-on-primary-surface, #ffffff);
 }
 
 .email-toolbar-title-wrap,
@@ -1763,8 +2207,8 @@ function EMAIL.GetCSS()
 .email-toolbar-title,
 .email-compose-title,
 .email-detail-title {
-    color: #d4d4d4;
-    font-size: 19px;
+    color: var(--color-text-on-primary-surface, #ffffff);
+    font-size: 18px;
     font-weight: 700;
 }
 
@@ -1772,12 +2216,11 @@ function EMAIL.GetCSS()
 .email-compose-subtitle,
 .email-detail-meta,
 .email-section-meta {
-    color: #8a93a2;
+    color: rgba(255, 255, 255, 0.72);
     font-size: 12px;
 }
 
 .email-toolbar-actions,
-.email-compose-header-actions,
 .email-detail-actions,
 .email-detail-attachment-actions {
     margin-left: auto;
@@ -1790,17 +2233,18 @@ function EMAIL.GetCSS()
 .email-back-btn,
 .email-format-btn {
     padding: 8px 12px;
-    border: 1px solid #3a404a;
-    border-radius: 6px;
-    background: #2a2f38;
-    color: #e2e6eb;
+    border: 1px solid var(--color-button-border, #444);
+    border-radius: var(--radius-ui-small, 4px);
+    background: var(--color-button-muted-bg, #2f2f2f);
+    color: var(--color-text-on-button, #fff);
     cursor: pointer;
 }
 
 .email-toolbar-btn:hover,
 .email-back-btn:hover,
 .email-format-btn:hover {
-    background: #343a45;
+    background: var(--color-button-hover-bg, #3a3a3a);
+    border-color: var(--color-accent, #555);
 }
 
 .email-toolbar-btn:disabled {
@@ -1808,10 +2252,25 @@ function EMAIL.GetCSS()
     cursor: not-allowed;
 }
 
+.email-delete-btn,
+.email-bulk-delete-btn {
+    border-color: var(--color-secondary-button-border, #3f4a59);
+    background: var(--color-secondary-button-bg, #566375);
+    color: var(--color-text-on-secondary-button, #ffffff);
+}
+
+.email-delete-btn:hover,
+.email-bulk-delete-btn:hover {
+    background: var(--color-secondary-button-hover-bg, #465364) !important;
+    border-color: var(--color-highlight, #4a9eff) !important;
+    box-shadow: 0 0 0 1px var(--color-highlight, #4a9eff) !important;
+}
+
 .email-list-table {
     flex: 1;
     min-height: 0;
     overflow: auto;
+    background: linear-gradient(180deg, var(--color-window-bg, #232323), var(--color-surface-1, #202020));
 }
 
 .email-list-header,
@@ -1827,24 +2286,24 @@ function EMAIL.GetCSS()
     position: sticky;
     top: 0;
     z-index: 1;
-    background: #1d2127;
-    border-bottom: 1px solid #2b2e34;
-    color: #93a0b0;
+    background: #283140;
+    border-bottom: 1px solid var(--color-window-border, #444);
+    color: rgba(255, 255, 255, 0.72);
     font-size: 12px;
 }
 
 .email-list-row {
-    border-bottom: 1px solid #252a31;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     cursor: pointer;
     background: transparent;
 }
 
 .email-list-row:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.06);
 }
 
 .email-list-row.is-unread {
-    background: rgba(0, 122, 204, 0.08);
+    background: rgba(94, 155, 227, 0.12);
 }
 
 .email-row-topline,
@@ -1858,12 +2317,12 @@ function EMAIL.GetCSS()
 }
 
 .email-row-topline {
-    color: #d4d4d4;
+    color: var(--color-text-primary, #ffffff);
     font-size: 13px;
 }
 
 .email-row-subject {
-    color: #ffffff;
+    color: var(--color-text-primary, #ffffff);
     font-size: 14px;
     font-weight: 700;
     margin-top: 2px;
@@ -1871,13 +2330,13 @@ function EMAIL.GetCSS()
 
 .email-row-preview,
 .email-row-meta {
-    color: #8f98a8;
+    color: var(--color-text-secondary, #9a9a9a);
     font-size: 12px;
     margin-top: 3px;
 }
 
 .email-row-date {
-    color: #d4d4d4;
+    color: var(--color-text-primary, #ffffff);
     font-size: 12px;
     text-align: right;
 }
@@ -1899,7 +2358,22 @@ function EMAIL.GetCSS()
 
 .email-compose-panel,
 .email-detail-panel {
+    min-height: 0;
+}
+
+.email-detail-panel {
     overflow: auto;
+}
+
+.email-compose-panel {
+    overflow: hidden;
+}
+
+.email-compose-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: linear-gradient(180deg, var(--color-window-bg, #232323), var(--color-surface-1, #202020));
 }
 
 .email-compose-fields,
@@ -1920,7 +2394,7 @@ function EMAIL.GetCSS()
     display: flex;
     flex-direction: column;
     gap: 6px;
-    color: #c5cfdb;
+    color: rgba(255, 255, 255, 0.82);
     font-size: 12px;
     position: relative;
 }
@@ -1928,11 +2402,11 @@ function EMAIL.GetCSS()
 .email-input,
 .email-body-input {
     width: 100%;
-    padding: 10px 12px;
-    border: 1px solid #3a404a;
-    border-radius: 6px;
-    background: #161a1f;
-    color: #eef2f6;
+    padding: 8px 10px;
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: var(--radius-ui-small, 4px);
+    background: var(--color-input-bg, #1f1f1f);
+    color: var(--color-text-primary, #fff);
     font: inherit;
     box-sizing: border-box;
 }
@@ -1942,9 +2416,14 @@ function EMAIL.GetCSS()
     flex-wrap: wrap;
     gap: 8px;
     padding: 8px;
-    border: 1px solid #3a404a;
-    border-radius: 6px;
-    background: #161a1f;
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: var(--radius-ui-small, 4px);
+    background: var(--color-input-bg, #1f1f1f);
+}
+
+.email-recipient-input-box:focus-within {
+    border-color: var(--color-accent, #4a9eff);
+    box-shadow: 0 0 0 1px var(--color-accent, #4a9eff);
 }
 
 .email-recipient-chips {
@@ -1959,8 +2438,9 @@ function EMAIL.GetCSS()
     gap: 6px;
     padding: 6px 10px;
     border-radius: 999px;
-    background: #007acc;
-    color: #fff;
+    background: rgba(59, 116, 181, 0.18);
+    border: 1px solid rgba(94, 155, 227, 0.45);
+    color: #dbe9ff;
     font-size: 12px;
 }
 
@@ -1983,12 +2463,16 @@ function EMAIL.GetCSS()
 
 .email-recipient-dropdown {
     display: none;
-    margin-top: 6px;
-    border: 1px solid #3a404a;
-    border-radius: 8px;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 25;
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: 6px;
     overflow: hidden;
-    background: #1f242b;
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+    background: #232a34;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
     max-height: 250px;
     overflow-y: auto;
 }
@@ -2002,7 +2486,7 @@ function EMAIL.GetCSS()
     align-items: center;
     gap: 12px;
     padding: 10px 12px;
-    border-bottom: 1px solid #2c3139;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     cursor: pointer;
 }
 
@@ -2011,28 +2495,28 @@ function EMAIL.GetCSS()
 }
 
 .email-recipient-option:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.06);
 }
 
 .email-favorite-toggle {
     width: 28px;
     height: 28px;
-    border: 1px solid #3a404a;
-    border-radius: 6px;
-    background: #272c34;
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: var(--radius-ui-small, 4px);
+    background: var(--color-button-muted-bg, #2f2f2f);
     color: #f7cb58;
     cursor: pointer;
     flex-shrink: 0;
 }
 
 .email-recipient-option-name {
-    color: #eef2f6;
+    color: var(--color-text-primary, #fff);
     font-size: 13px;
 }
 
 .email-recipient-option-meta,
 .email-recipient-empty {
-    color: #8b94a3;
+    color: var(--color-text-secondary, #9a9a9a);
     font-size: 12px;
 }
 
@@ -2044,7 +2528,7 @@ function EMAIL.GetCSS()
     display: flex;
     align-items: center;
     justify-content: space-between;
-    color: #d4d4d4;
+    color: var(--color-text-primary, #ffffff);
     font-size: 13px;
     font-weight: 700;
     margin-bottom: 10px;
@@ -2058,7 +2542,7 @@ function EMAIL.GetCSS()
 
 .email-attachments-empty {
     padding: 10px 0;
-    color: #8f98a8;
+    color: var(--color-text-secondary, #9a9a9a);
     font-size: 12px;
 }
 
@@ -2068,9 +2552,9 @@ function EMAIL.GetCSS()
     justify-content: space-between;
     gap: 12px;
     padding: 10px 12px;
-    border: 1px solid #2f333a;
-    border-radius: 8px;
-    background: #171b20;
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .email-attachment-meta {
@@ -2078,12 +2562,12 @@ function EMAIL.GetCSS()
 }
 
 .email-attachment-name {
-    color: #eef2f6;
+    color: var(--color-text-primary, #fff);
     font-size: 13px;
 }
 
 .email-attachment-path {
-    color: #8f98a8;
+    color: var(--color-text-secondary, #9a9a9a);
     font-size: 11px;
     margin-top: 4px;
     overflow: hidden;
@@ -2095,7 +2579,7 @@ function EMAIL.GetCSS()
     flex: 1;
     min-height: 0;
     padding-top: 16px;
-    padding-bottom: 16px;
+    padding-bottom: 28px;
     display: flex;
     flex-direction: column;
 }
@@ -2105,6 +2589,10 @@ function EMAIL.GetCSS()
     gap: 6px;
     flex-wrap: wrap;
     margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .email-body-input,
@@ -2119,22 +2607,57 @@ function EMAIL.GetCSS()
 
 .email-body-preview,
 .email-detail-body {
-    border: 1px solid #2f333a;
-    border-radius: 8px;
-    background: #15191e;
-    color: #d4d4d4;
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: 6px;
+    background: var(--color-input-bg, #1f1f1f);
+    color: var(--color-text-primary, #fff);
     padding: 14px;
     line-height: 1.55;
 }
 
 .email-detail-recipients {
     padding-top: 14px;
-    color: #8f98a8;
+    color: var(--color-text-secondary, #9a9a9a);
     font-size: 12px;
 }
 
 .email-detail-body {
     margin-top: 14px;
+}
+
+.email-compose-footer {
+    flex-shrink: 0;
+    padding: 12px;
+    border-top: 1px solid var(--color-window-border, #444);
+    background: var(--color-footer-bar-bg, #2d3747) !important;
+}
+
+.email-compose-footer-actions {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.email-compose-footer-left,
+.email-compose-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.email-compose-footer .email-send-btn {
+    border-color: var(--color-secondary-button-border, #3f4a59);
+    background: var(--color-secondary-button-bg, #566375);
+    color: var(--color-text-on-secondary-button, #ffffff);
+    box-shadow: none;
+}
+
+.email-compose-footer .email-send-btn:hover {
+    background: var(--color-secondary-button-hover-bg, #465364) !important;
+    border-color: var(--color-highlight, #4a9eff) !important;
+    box-shadow: 0 0 0 1px var(--color-highlight, #4a9eff) !important;
 }
 
 .email-body-preview h1,
@@ -2143,14 +2666,14 @@ function EMAIL.GetCSS()
 .email-detail-body h1,
 .email-detail-body h2,
 .email-detail-body h3 {
-    color: #4fc1ff;
+    color: #8dc2ff;
 }
 
 .email-body-preview code,
 .email-detail-body code {
     padding: 2px 4px;
     border-radius: 4px;
-    background: #11151a;
+    background: #151a20;
     color: #d7ba7d;
 }
 
@@ -2158,7 +2681,7 @@ function EMAIL.GetCSS()
 .email-detail-body blockquote {
     margin: 8px 0;
     padding-left: 12px;
-    border-left: 3px solid #007acc;
+    border-left: 3px solid var(--color-accent, #5e9be3);
     color: #b6c1cf;
 }
 

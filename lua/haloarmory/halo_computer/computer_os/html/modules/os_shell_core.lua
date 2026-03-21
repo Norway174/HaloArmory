@@ -551,11 +551,41 @@ var osShell = {
         
         container.innerHTML = '';
         var programs = window.programRegistry.getAll();
+
+        var createStartSubmenuItem = function(labelText, iconText, onClick) {
+            var submenuItem = document.createElement('button');
+            submenuItem.className = 'os-start-submenu-item';
+            submenuItem.type = 'button';
+
+            var submenuIcon = document.createElement('span');
+            submenuIcon.className = 'os-start-submenu-item-icon';
+            submenuIcon.textContent = iconText || '📄';
+
+            var submenuLabel = document.createElement('span');
+            submenuLabel.className = 'os-start-submenu-item-label';
+            submenuLabel.textContent = labelText;
+
+            submenuItem.appendChild(submenuIcon);
+            submenuItem.appendChild(submenuLabel);
+            submenuItem.addEventListener('click', function(e) {
+                e.stopPropagation();
+                onClick(e);
+            });
+            return submenuItem;
+        };
         
         for (var id in programs) {
 
-            // Skip settings program
-            if (id === 'settings') {
+            // Skip settings, standalone ExternalDrive alias, and games grouped elsewhere
+            if (
+                id === 'settings' ||
+                id === 'externaldrive' ||
+                id === 'minesweeper' ||
+                id === 'pingpong' ||
+                id === 'snake' ||
+                id === 'conway' ||
+                id === 'game2048'
+            ) {
                 continue;
             }
         
@@ -575,6 +605,32 @@ var osShell = {
                 item.appendChild(icon);
                 item.appendChild(label);
                 item.dataset.programId = id;
+
+                if (id === 'filebrowser') {
+                    item.classList.add('has-submenu');
+
+                    var arrow = document.createElement('span');
+                    arrow.className = 'os-start-menu-item-arrow';
+                    arrow.textContent = '▶';
+                    item.appendChild(arrow);
+
+                    var submenu = document.createElement('div');
+                    submenu.className = 'os-start-submenu';
+
+                    var cDriveItem = createStartSubmenuItem('C:/', '💾', function() {
+                        osShell.openProgram('filebrowser', 'C:/');
+                        osShell.closeStartMenu();
+                    });
+
+                    var externalDriveItem = createStartSubmenuItem('ExternalDrive:/', '💽', function() {
+                        osShell.openProgram('filebrowser', 'ExternalDrive:/');
+                        osShell.closeStartMenu();
+                    });
+
+                    submenu.appendChild(cDriveItem);
+                    submenu.appendChild(externalDriveItem);
+                    item.appendChild(submenu);
+                }
                 
                 item.addEventListener('click', (function(programId) {
                     return function() {
@@ -601,6 +657,74 @@ var osShell = {
                 
                 container.appendChild(item);
             }
+        }
+
+        var gameEntries = [
+            { id: 'minesweeper', fallbackTitle: 'Minesweeper', fallbackIcon: '💣' },
+            { id: 'pingpong', fallbackTitle: 'Ping Pong', fallbackIcon: '🏓' },
+            { id: 'snake', fallbackTitle: 'Snake', fallbackIcon: '🐍' },
+            { id: 'conway', fallbackTitle: 'Conway\'s Life', fallbackIcon: '🧬' },
+            { id: 'game2048', fallbackTitle: '2048', fallbackIcon: '🔢' }
+        ].filter(function(entry) {
+            return !!programs[entry.id];
+        });
+
+        if (gameEntries.length) {
+            var gamesItem = document.createElement('div');
+            gamesItem.className = 'os-start-menu-item has-submenu';
+
+            var gamesIcon = document.createElement('span');
+            gamesIcon.className = 'os-start-menu-item-icon';
+            gamesIcon.textContent = '🎮';
+
+            var gamesLabel = document.createElement('span');
+            gamesLabel.className = 'os-start-menu-item-label';
+            gamesLabel.textContent = 'Games';
+
+            var gamesArrow = document.createElement('span');
+            gamesArrow.className = 'os-start-menu-item-arrow';
+            gamesArrow.textContent = '▶';
+
+            var gamesSubmenu = document.createElement('div');
+            gamesSubmenu.className = 'os-start-submenu';
+
+            var minesweeperItem = createStartSubmenuItem(
+                programs.minesweeper.title || 'Minesweeper',
+                programs.minesweeper.icon || '💣',
+                function() {
+                osShell.openProgram('minesweeper');
+                osShell.closeStartMenu();
+            });
+
+            gamesSubmenu.appendChild(minesweeperItem);
+            gameEntries.forEach(function(entry) {
+                if (entry.id === 'minesweeper') {
+                    return;
+                }
+
+                var program = programs[entry.id];
+                var gameItem = createStartSubmenuItem(
+                    program.title || entry.fallbackTitle,
+                    program.icon || entry.fallbackIcon,
+                    function() {
+                        osShell.openProgram(entry.id);
+                        osShell.closeStartMenu();
+                    }
+                );
+
+                gamesSubmenu.appendChild(gameItem);
+            });
+            gamesItem.appendChild(gamesIcon);
+            gamesItem.appendChild(gamesLabel);
+            gamesItem.appendChild(gamesArrow);
+            gamesItem.appendChild(gamesSubmenu);
+
+            gamesItem.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+
+            container.appendChild(gamesItem);
         }
         
         // Add separator
@@ -712,6 +836,10 @@ var osShell = {
             }, 100);
             return;
         }
+
+        if (forceRefresh && window.osFileItemRenderer && window.osFileItemRenderer.invalidatePreviewCache) {
+            window.osFileItemRenderer.invalidatePreviewCache(window.PATH_DESKTOP || 'C:/desktop/');
+        }
         
         window.filesystem.listDirectory(window.PATH_DESKTOP || 'C:/desktop/', function(files) {
             var container = document.getElementById('os-desktop-icons');
@@ -755,6 +883,10 @@ var osShell = {
                         
                         container.appendChild(icon);
                     });
+
+                    if (window.osFileItemRenderer.hydrateImagePreviews) {
+                        window.osFileItemRenderer.hydrateImagePreviews(container);
+                    }
                 } else {
                     files.forEach(function(file) {
                         self.createDesktopIconOld(file, container);

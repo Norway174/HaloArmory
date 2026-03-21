@@ -141,7 +141,8 @@ function MODULE.GetCSS()
 
 .os-file-dialog-path,
 .os-file-dialog-filter,
-.os-file-dialog-filename {
+.os-file-dialog-filename,
+.os-file-dialog-extension {
     padding: 8px 10px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: var(--radius-ui-small, 4px);
@@ -190,8 +191,22 @@ function MODULE.GetCSS()
     align-items: center;
 }
 
+.os-file-dialog-name-group {
+    flex: 1;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+}
+
 .os-file-dialog-filename {
     flex: 1;
+    min-width: 0;
+}
+
+.os-file-dialog-extension {
+    width: 112px;
+    flex: 0 0 112px;
 }
 
 .os-file-dialog-actions {
@@ -211,6 +226,12 @@ function MODULE.GetJavaScript()
     return [[
 window.osFileDialogs = {
     activeDialog: null,
+    allowedExtensions: [
+        '.image',
+        '.txt', '.dat', '.json', '.xml', '.csv', '.dem', '.vcd', '.gma',
+        '.mdl', '.phy', '.vvd', '.vtx', '.ani', '.vtf', '.vmt',
+        '.png', '.jpg', '.jpeg', '.mp3', '.wav', '.ogg'
+    ],
 
     normalizeFolderPath: function(path) {
         var normalized = window.normalizePathForNavigation ? window.normalizePathForNavigation(path) : (path || 'C:/');
@@ -225,39 +246,65 @@ window.osFileDialogs = {
         return normalized === 'c:/.system/' || normalized.indexOf('c:/.system/') === 0;
     },
 
-    ensureAllowedExtension: function(filename, allowedExtensions) {
-        var rawName = String(filename || '').trim();
-        if (!allowedExtensions || !allowedExtensions.length) {
-            return rawName;
+    normalizeExtension: function(extension) {
+        var ext = String(extension || '').trim().toLowerCase();
+        if (!ext) {
+            return '';
         }
-
-        var normalizedExtensions = allowedExtensions.map(function(ext) {
-            ext = String(ext || '').trim().toLowerCase();
-            return ext.charAt(0) === '.' ? ext : ('.' + ext);
-        }).filter(function(ext) {
-            return !!ext;
-        });
-
-        if (!normalizedExtensions.length) {
-            return rawName;
+        if (ext.charAt(0) !== '.') {
+            ext = '.' + ext;
         }
+        return this.allowedExtensions.indexOf(ext) >= 0 ? ext : '';
+    },
 
-        var lowerName = rawName.toLowerCase();
-        for (var i = 0; i < normalizedExtensions.length; i++) {
-            if (lowerName.endsWith(normalizedExtensions[i])) {
-                return rawName;
+    getAllowedExtensions: function(extensions) {
+        var source = Array.isArray(extensions) && extensions.length ? extensions : this.allowedExtensions;
+        var seen = {};
+        var normalized = [];
+
+        for (var i = 0; i < source.length; i++) {
+            var ext = this.normalizeExtension(source[i]);
+            if (ext && !seen[ext]) {
+                seen[ext] = true;
+                normalized.push(ext);
             }
         }
 
-        var withoutExtension = rawName.replace(/\.[^.]+$/, '');
-        return withoutExtension + normalizedExtensions[0];
+        if (!normalized.length) {
+            normalized.push('.txt');
+        }
+
+        return normalized;
     },
 
-    sanitizeFileName: function(filename, allowedExtensions) {
-        var withExtension = this.ensureAllowedExtension(filename, allowedExtensions);
-        var extensionMatch = withExtension.match(/(\.[^.]+)$/);
-        var extension = extensionMatch ? extensionMatch[1].toLowerCase() : '';
-        var baseName = extension ? withExtension.slice(0, -extension.length) : withExtension;
+    splitFileName: function(filename) {
+        var rawName = String(filename || '').trim();
+        if (!rawName) {
+            return {
+                baseName: '',
+                extension: ''
+            };
+        }
+
+        var lowerName = rawName.toLowerCase();
+        var matchedExtension = '';
+        for (var i = 0; i < this.allowedExtensions.length; i++) {
+            var extension = this.allowedExtensions[i];
+            if (lowerName.endsWith(extension) && extension.length > matchedExtension.length) {
+                matchedExtension = extension;
+            }
+        }
+
+        return {
+            baseName: matchedExtension ? rawName.slice(0, -matchedExtension.length) : rawName,
+            extension: matchedExtension
+        };
+    },
+
+    sanitizeFileName: function(filename, extension, allowedExtensions) {
+        var normalizedExtensions = this.getAllowedExtensions(allowedExtensions);
+        var normalizedExtension = this.normalizeExtension(extension) || normalizedExtensions[0];
+        var baseName = String(filename || '');
 
         if (window.osFilenameRules) {
             var validation = window.osFilenameRules.validateBaseName(baseName);
@@ -275,13 +322,32 @@ window.osFileDialogs = {
             baseName = 'untitled';
         }
 
-        return baseName + extension;
+        return baseName + normalizedExtension;
     },
 
     getDisplayName: function(filename) {
-        return String(filename || '')
-            .replace(/\.shortcut\.dat$/i, '')
-            .replace(/\.(txt|dat|png|jpg|jpeg)$/i, '');
+        var rawName = String(filename || '');
+        if (!rawName) {
+            return '';
+        }
+
+        if (/\.shortcut\.dat$/i.test(rawName)) {
+            return rawName.replace(/\.shortcut\.dat$/i, '');
+        }
+
+        if (/\.image\.dat$/i.test(rawName)) {
+            return rawName.replace(/\.image\.dat$/i, '.image').replace(/\.(png|jpg|jpeg)\.image$/i, '.image');
+        }
+
+        if (/\.image$/i.test(rawName)) {
+            return rawName;
+        }
+
+        if (/\.txt$/i.test(rawName)) {
+            return rawName.replace(/\.txt$/i, '');
+        }
+
+        return rawName.replace(/\.[^.]+$/i, '');
     },
 
     isVisibleSaveEntry: function(file) {
@@ -312,27 +378,153 @@ window.osFileDialogs = {
         window._saveDialogLoadFolder = null;
     },
 
-    showSaveAs: function(options) {
+    showOpen: function(options) {
         options = options || {};
         this.close();
+        var requestedPath = options.folder || options.initialPath || 'C:/desktop/';
 
         var state = {
-            title: options.title || 'Save As...',
-            confirmLabel: options.confirmLabel || 'Save',
-            initialPath: this.normalizeFolderPath(options.initialPath || 'C:/'),
-            currentPath: this.normalizeFolderPath(options.initialPath || 'C:/'),
-            defaultName: options.defaultName || '',
-            filename: options.defaultName || '',
+            mode: 'open',
+            title: options.title || 'Open...',
+            confirmLabel: options.confirmLabel || 'Open',
+            initialPath: this.normalizeFolderPath(requestedPath),
+            currentPath: this.normalizeFolderPath(requestedPath),
             filter: '',
             selectedPath: null,
             allFiles: [],
             filteredFiles: [],
-            allowedExtensions: Array.isArray(options.allowedExtensions) ? options.allowedExtensions.slice() : [],
+            allowedExtensions: this.getAllowedExtensions(options.allowedExtensions),
+            onOpen: typeof options.onOpen === 'function' ? options.onOpen : function() {},
+            overlay: null,
+            dialog: null,
+            dragCleanup: null
+        };
+
+        var overlay = document.createElement('div');
+        overlay.className = 'os-file-dialog-overlay';
+        overlay.innerHTML = '' +
+            '<div class="os-file-dialog">' +
+                '<div class="os-file-dialog-header">' +
+                    '<div class="os-file-dialog-title">' + escapeHtml(state.title) + '</div>' +
+                    '<button class="os-file-dialog-close" type="button">x</button>' +
+                '</div>' +
+                '<div class="os-file-dialog-body">' +
+                    '<div class="os-file-dialog-sidebar">' +
+                        '<button class="os-file-dialog-drive-btn active" data-drive="C:/">C:/</button>' +
+                        '<button class="os-file-dialog-drive-btn" data-drive="ExternalDrive:/">ExternalDrive:/</button>' +
+                    '</div>' +
+                    '<div class="os-file-dialog-main">' +
+                        '<div class="os-file-dialog-toolbar">' +
+                            '<button class="os-file-dialog-up os-file-dialog-button" type="button">Up</button>' +
+                            '<input type="text" class="os-file-dialog-path" />' +
+                            '<input type="text" class="os-file-dialog-filter" placeholder="Filter..." />' +
+                        '</div>' +
+                        '<div class="os-file-dialog-content"><div class="os-file-dialog-loading">Loading...</div></div>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="os-file-dialog-footer">' +
+                    '<div class="os-file-dialog-readonly" style="display:none;"></div>' +
+                    '<div class="os-file-dialog-actions" style="margin-left:auto;">' +
+                        '<button class="os-file-dialog-button" type="button" data-action="cancel">Cancel</button>' +
+                        '<button class="os-file-dialog-button os-file-dialog-button-primary" type="button" data-action="open">' + escapeHtml(state.confirmLabel) + '</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+
+        document.body.appendChild(overlay);
+        state.overlay = overlay;
+        state.dialog = overlay.querySelector('.os-file-dialog');
+        this.activeDialog = state;
+
+        var self = this;
+        var pathInput = overlay.querySelector('.os-file-dialog-path');
+        var filterInput = overlay.querySelector('.os-file-dialog-filter');
+        pathInput.value = state.currentPath;
+
+        overlay.addEventListener('mousedown', function(e) {
+            if (e.target === overlay) {
+                self.close();
+            }
+        });
+
+        this.centerDialog();
+        this.bindDragging();
+
+        overlay.querySelector('.os-file-dialog-close').addEventListener('click', function() {
+            self.close();
+        });
+
+        overlay.querySelector('[data-action="cancel"]').addEventListener('click', function() {
+            self.close();
+        });
+
+        overlay.querySelector('[data-action="open"]').addEventListener('click', function() {
+            self.confirmOpen();
+        });
+
+        overlay.querySelector('.os-file-dialog-up').addEventListener('click', function() {
+            self.goUp();
+        });
+
+        overlay.querySelectorAll('.os-file-dialog-drive-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                self.loadFolder(button.getAttribute('data-drive'));
+            });
+        });
+
+        pathInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                self.loadFolder(pathInput.value);
+            }
+        });
+
+        filterInput.addEventListener('input', function() {
+            if (!self.activeDialog) {
+                return;
+            }
+            self.activeDialog.filter = filterInput.value || '';
+            self.applyFilter();
+        });
+
+        this.loadFolder(state.currentPath);
+
+        setTimeout(function() {
+            if (filterInput) {
+                filterInput.focus();
+            }
+        }, 10);
+    },
+
+    showSaveAs: function(options) {
+        options = options || {};
+        this.close();
+        var requestedPath = options.folder || options.initialPath || 'C:/desktop/';
+
+        var state = {
+            title: options.title || 'Save As...',
+            confirmLabel: options.confirmLabel || 'Save',
+            initialPath: this.normalizeFolderPath(requestedPath),
+            currentPath: this.normalizeFolderPath(requestedPath),
+            defaultName: options.defaultName || '',
+            filename: '',
+            selectedExtension: '',
+            filter: '',
+            selectedPath: null,
+            allFiles: [],
+            filteredFiles: [],
+            allowedExtensions: this.getAllowedExtensions(options.allowedExtensions),
             onSave: typeof options.onSave === 'function' ? options.onSave : function() {},
             overlay: null,
             dialog: null,
             dragCleanup: null
         };
+
+        var initialParts = this.splitFileName(state.defaultName);
+        state.filename = initialParts.baseName || state.defaultName || '';
+        state.selectedExtension = this.normalizeExtension(options.defaultExtension) || initialParts.extension || state.allowedExtensions[0];
+        if (state.allowedExtensions.indexOf(state.selectedExtension) === -1) {
+            state.selectedExtension = state.allowedExtensions[0];
+        }
 
         var overlay = document.createElement('div');
         overlay.className = 'os-file-dialog-overlay';
@@ -359,7 +551,10 @@ window.osFileDialogs = {
                 '</div>' +
                 '<div class="os-file-dialog-footer">' +
                     '<div class="os-file-dialog-readonly" style="display:none;">This location is read-only.</div>' +
-                    '<input type="text" class="os-file-dialog-filename" placeholder="File name" />' +
+                    '<div class="os-file-dialog-name-group">' +
+                        '<input type="text" class="os-file-dialog-filename" placeholder="File name" />' +
+                        '<select class="os-file-dialog-extension"></select>' +
+                    '</div>' +
                     '<div class="os-file-dialog-actions">' +
                         '<button class="os-file-dialog-button" type="button" data-action="cancel">Cancel</button>' +
                         '<button class="os-file-dialog-button os-file-dialog-button-primary" type="button" data-action="save">' + escapeHtml(state.confirmLabel) + '</button>' +
@@ -376,9 +571,14 @@ window.osFileDialogs = {
         var pathInput = overlay.querySelector('.os-file-dialog-path');
         var filterInput = overlay.querySelector('.os-file-dialog-filter');
         var filenameInput = overlay.querySelector('.os-file-dialog-filename');
+        var extensionSelect = overlay.querySelector('.os-file-dialog-extension');
 
         pathInput.value = state.currentPath;
-        filenameInput.value = state.defaultName;
+        filenameInput.value = state.filename;
+        extensionSelect.innerHTML = state.allowedExtensions.map(function(ext) {
+            return '<option value="' + escapeHtml(ext) + '">' + escapeHtml(ext) + '</option>';
+        }).join('');
+        extensionSelect.value = state.selectedExtension;
 
         overlay.addEventListener('mousedown', function(e) {
             if (e.target === overlay) {
@@ -427,6 +627,13 @@ window.osFileDialogs = {
             }
             self.activeDialog.filter = filterInput.value || '';
             self.applyFilter();
+        });
+
+        extensionSelect.addEventListener('change', function() {
+            if (!self.activeDialog) {
+                return;
+            }
+            self.activeDialog.selectedExtension = self.normalizeExtension(extensionSelect.value) || self.activeDialog.allowedExtensions[0];
         });
 
         filenameInput.addEventListener('keydown', function(e) {
@@ -569,8 +776,12 @@ window.osFileDialogs = {
 
         var readOnlyLabel = overlay.querySelector('.os-file-dialog-readonly');
         var newFolderBtn = overlay.querySelector('.os-file-dialog-new-folder');
-        readOnlyLabel.style.display = readOnly ? 'block' : 'none';
-        newFolderBtn.disabled = readOnly;
+        if (readOnlyLabel) {
+            readOnlyLabel.style.display = readOnly && newFolderBtn ? 'block' : 'none';
+        }
+        if (newFolderBtn) {
+            newFolderBtn.disabled = readOnly;
+        }
     },
 
     goUp: function() {
@@ -652,6 +863,26 @@ window.osFileDialogs = {
         var state = this.activeDialog;
         var query = String(state.filter || '').toLowerCase().trim();
         var visibleFiles = state.allFiles.filter(function(file) {
+            var isDirectory = file.type === 'directory' || file.fileType === 'directory';
+            if (state.mode === 'open') {
+                if (isDirectory) {
+                    return true;
+                }
+                var fileName = String(file.name || '').toLowerCase();
+                var displayName = String(file.displayName || '').toLowerCase();
+                var fileType = String(file.fileType || file.type || '').toLowerCase();
+                return state.allowedExtensions.some(function(ext) {
+                    if (fileName.endsWith(ext) || displayName.endsWith(ext)) {
+                        return true;
+                    }
+
+                    if (fileType === 'image' && (ext === '.image' || ext === '.png' || ext === '.jpg' || ext === '.jpeg')) {
+                        return displayName.endsWith(ext);
+                    }
+
+                    return false;
+                });
+            }
             return window.osFileDialogs.isVisibleSaveEntry(file);
         });
 
@@ -708,6 +939,9 @@ window.osFileDialogs = {
         html += '</div>';
 
         content.innerHTML = html;
+        if (window.osFileItemRenderer && window.osFileItemRenderer.hydrateImagePreviews) {
+            window.osFileItemRenderer.hydrateImagePreviews(content);
+        }
 
         var self = this;
         content.querySelectorAll('.os-file-item').forEach(function(item) {
@@ -720,8 +954,14 @@ window.osFileDialogs = {
                 var filepath = item.getAttribute('data-filepath');
                 var filetype = item.getAttribute('data-filetype');
                 state.selectedPath = filepath;
+                if (state.mode === 'open') {
+                    return;
+                }
                 if (filetype !== 'directory') {
-                    state.overlay.querySelector('.os-file-dialog-filename').value = self.ensureAllowedExtension(item.getAttribute('data-name') || '', state.allowedExtensions);
+                    var parts = self.splitFileName(item.getAttribute('data-name') || '');
+                    state.overlay.querySelector('.os-file-dialog-filename').value = parts.baseName || '';
+                    state.selectedExtension = state.allowedExtensions.indexOf(parts.extension) >= 0 ? parts.extension : state.allowedExtensions[0];
+                    state.overlay.querySelector('.os-file-dialog-extension').value = state.selectedExtension;
                 }
             });
 
@@ -733,7 +973,16 @@ window.osFileDialogs = {
                     return;
                 }
 
-                state.overlay.querySelector('.os-file-dialog-filename').value = self.ensureAllowedExtension(item.getAttribute('data-name') || '', state.allowedExtensions);
+                if (state.mode === 'open') {
+                    state.selectedPath = filepath;
+                    self.confirmOpen();
+                    return;
+                }
+
+                var parts = self.splitFileName(item.getAttribute('data-name') || '');
+                state.overlay.querySelector('.os-file-dialog-filename').value = parts.baseName || '';
+                state.selectedExtension = state.allowedExtensions.indexOf(parts.extension) >= 0 ? parts.extension : state.allowedExtensions[0];
+                state.overlay.querySelector('.os-file-dialog-extension').value = state.selectedExtension;
                 self.confirmSave();
             });
         });
@@ -746,7 +995,9 @@ window.osFileDialogs = {
 
         var state = this.activeDialog;
         var filenameInput = state.overlay.querySelector('.os-file-dialog-filename');
+        var extensionSelect = state.overlay.querySelector('.os-file-dialog-extension');
         var rawFilename = String(filenameInput.value || '').trim();
+        var selectedExtension = this.normalizeExtension(extensionSelect.value) || state.allowedExtensions[0];
 
         if (!rawFilename) {
             if (window.osErrorHandler) {
@@ -762,14 +1013,17 @@ window.osFileDialogs = {
             return;
         }
 
-        var finalName = this.sanitizeFileName(rawFilename, state.allowedExtensions);
+        var finalName = this.sanitizeFileName(rawFilename, selectedExtension, state.allowedExtensions);
         var finalPath = this.normalizeFolderPath(state.currentPath) + finalName;
         var self = this;
 
         window.filesystem.listDirectory(state.currentPath, function(files) {
             var existing = null;
+            var finalDisplayName = self.getDisplayName(finalName);
             (files || []).forEach(function(file) {
-                if (!existing && String(file.name || '').toLowerCase() === finalName.toLowerCase()) {
+                var fileName = String(file.name || '').toLowerCase();
+                var displayName = String(file.displayName || '').toLowerCase();
+                if (!existing && (fileName === finalName.toLowerCase() || displayName === finalDisplayName.toLowerCase())) {
                     existing = file;
                 }
             });
@@ -785,6 +1039,29 @@ window.osFileDialogs = {
 
             finish();
         });
+    },
+
+    confirmOpen: function() {
+        if (!this.activeDialog) {
+            return;
+        }
+
+        var state = this.activeDialog;
+        var selectedPath = String(state.selectedPath || '');
+        if (!selectedPath) {
+            if (window.osErrorHandler) {
+                window.osErrorHandler.showNotification('Select a file to open', 'warning', 2000);
+            }
+            return;
+        }
+
+        if (selectedPath.endsWith('/')) {
+            this.loadFolder(selectedPath);
+            return;
+        }
+
+        state.onOpen(selectedPath);
+        this.close();
     }
 };
 ]]

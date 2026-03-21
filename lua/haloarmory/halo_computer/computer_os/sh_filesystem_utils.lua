@@ -35,7 +35,46 @@ local UTILS = HALOARMORY.COMPUTER.FILESYSTEM_UTILS
 -- File type constants
 UTILS.FILETYPE_TEXT = ".txt"           -- Plain text files (no JSON wrapper)
 UTILS.FILETYPE_SHORTCUT = ".shortcut.dat"  -- Shortcut files (JSON metadata)
+UTILS.FILETYPE_IMAGE = ".image.dat"    -- Image files (JSON metadata + data payload)
 UTILS.FILETYPE_CONFIG = ".dat"         -- Config files (JSON settings)
+UTILS.ALLOWED_EXTENSIONS = {
+    [".txt"] = true,
+    [".dat"] = true,
+    [".json"] = true,
+    [".xml"] = true,
+    [".csv"] = true,
+    [".dem"] = true,
+    [".vcd"] = true,
+    [".gma"] = true,
+    [".mdl"] = true,
+    [".phy"] = true,
+    [".vvd"] = true,
+    [".vtx"] = true,
+    [".ani"] = true,
+    [".vtf"] = true,
+    [".vmt"] = true,
+    [".png"] = true,
+    [".jpg"] = true,
+    [".jpeg"] = true,
+    [".mp3"] = true,
+    [".wav"] = true,
+    [".ogg"] = true
+}
+
+local function GetAllowedExtension(name)
+    local lowerName = string.lower(name or "")
+    local matchedExtension = nil
+
+    for extension, _ in pairs(UTILS.ALLOWED_EXTENSIONS) do
+        if string.sub(lowerName, -string.len(extension)) == extension then
+            if not matchedExtension or string.len(extension) > string.len(matchedExtension) then
+                matchedExtension = extension
+            end
+        end
+    end
+
+    return matchedExtension
+end
 
 -- Helper function to validate and sanitize path (prevent directory traversal attacks)
 function UTILS.ValidatePath(path)
@@ -72,12 +111,7 @@ function UTILS.SanitizeFilename(name, fileType)
     end
 
     local lowerName = string.lower(name)
-    local passthroughExtension = string.match(lowerName, "(%.[a-z0-9]+)$")
-    local allowedPassthroughExtensions = {
-        [".png"] = true,
-        [".jpg"] = true,
-        [".jpeg"] = true
-    }
+    local passthroughExtension = GetAllowedExtension(lowerName)
     
     -- Check if name already has the correct extension for the file type
     local hasCorrectExtension = false
@@ -86,6 +120,17 @@ function UTILS.SanitizeFilename(name, fileType)
             hasCorrectExtension = true
             -- Extract base name (remove .shortcut.dat extension)
             name = string.gsub(name, "%.shortcut%.dat$", "")
+        end
+    elseif fileType == "image" then
+        if string.match(name, "%.image%.dat$") then
+            hasCorrectExtension = true
+            name = string.gsub(name, "%.image%.dat$", "")
+        elseif string.match(name, "%.image$") then
+            hasCorrectExtension = true
+            name = string.gsub(name, "%.image$", "")
+        elseif string.match(name, "%.png$") or string.match(name, "%.jpg$") or string.match(name, "%.jpeg$") then
+            hasCorrectExtension = true
+            name = string.gsub(name, "%.[^.]+$", "")
         end
     elseif fileType == "config" then
         if string.match(name, "%.dat$") and (name == "config.dat" or name == ".config.dat") then
@@ -98,7 +143,7 @@ function UTILS.SanitizeFilename(name, fileType)
             -- Extract base name (remove .txt extension)
             name = string.gsub(name, "%.txt$", "")
         end
-    elseif fileType == "image" and passthroughExtension and allowedPassthroughExtensions[passthroughExtension] then
+    elseif (fileType == "image" or fileType == "passthrough" or fileType == "file") and passthroughExtension and UTILS.ALLOWED_EXTENSIONS[passthroughExtension] then
         hasCorrectExtension = true
         name = string.gsub(name, "%.[^.]+$", "")
     end
@@ -136,11 +181,13 @@ function UTILS.SanitizeFilename(name, fileType)
     -- Add appropriate extension based on file type
     if fileType == "shortcut" then
         return name .. UTILS.FILETYPE_SHORTCUT, nil
+    elseif fileType == "image" then
+        return name .. UTILS.FILETYPE_IMAGE, nil
     elseif fileType == "config" then
         return "config" .. UTILS.FILETYPE_CONFIG, nil
     elseif fileType == "text" or fileType == "file" then
         return name .. UTILS.FILETYPE_TEXT, nil
-    elseif fileType == "image" and passthroughExtension and allowedPassthroughExtensions[passthroughExtension] then
+    elseif (fileType == "image" or fileType == "passthrough" or fileType == "file") and passthroughExtension and UTILS.ALLOWED_EXTENSIONS[passthroughExtension] then
         return name .. passthroughExtension, nil
     elseif fileType == "directory" or fileType == "folder" then
         -- Directories don't get extensions
@@ -160,25 +207,22 @@ function UTILS.GetDisplayName(filename)
     if filename == "config.dat" then
         return ".config"
     end
-    
-    -- Remove extensions
-    local name = filename
-    name = string.gsub(name, "%.txt$", "")
-    name = string.gsub(name, "%.shortcut%.dat$", "")
-    name = string.gsub(name, "%.dat$", "")
-    name = string.gsub(name, "%.png$", "")
-    name = string.gsub(name, "%.jpg$", "")
-    name = string.gsub(name, "%.jpeg$", "")
-    
-    -- Replace underscores and hyphens with spaces
-    //name = string.gsub(name, "[_%-]", " ")
-    
-    -- Capitalize first letter of each word
-    //name = string.gsub(name, "(%a)([%w_]*)", function(first, rest)
-    //    return string.upper(first) .. rest
-    //end)
-    
-    return name
+
+    if string.match(filename, "%.shortcut%.dat$") then
+        return string.gsub(filename, "%.shortcut%.dat$", "")
+    end
+
+    if string.match(filename, "%.image%.dat$") then
+        local baseName = string.gsub(filename, "%.image%.dat$", "")
+        baseName = string.gsub(baseName, "%.(png|jpg|jpeg)$", "")
+        return baseName .. ".image"
+    end
+
+    if string.match(filename, "%.txt$") then
+        return string.gsub(filename, "%.txt$", "")
+    end
+
+    return filename
 end
 
 -- Parse drive:path format
@@ -204,12 +248,22 @@ function UTILS.GetFileType(filename)
     
     if string.match(filename, "%.shortcut%.dat$") then
         return "shortcut"
+    elseif string.match(filename, "%.image%.dat$") then
+        return "image"
+    elseif string.match(filename, "%.image$") then
+        return "image"
     elseif filename == "config.dat" then
         return "config"
     elseif string.match(filename, "%.txt$") then
         return "text"
+    elseif string.match(filename, "%.json$") or string.match(filename, "%.xml$") or string.match(filename, "%.csv$") then
+        return "text"
     elseif string.match(filename, "%.png$") or string.match(filename, "%.jpg$") or string.match(filename, "%.jpeg$") then
         return "image"
+    elseif string.match(filename, "%.mp3$") or string.match(filename, "%.wav$") or string.match(filename, "%.ogg$") then
+        return "audio"
+    elseif string.match(filename, "%.dem$") or string.match(filename, "%.vcd$") or string.match(filename, "%.gma$") or string.match(filename, "%.mdl$") or string.match(filename, "%.phy$") or string.match(filename, "%.vvd$") or string.match(filename, "%.vtx$") or string.match(filename, "%.ani$") or string.match(filename, "%.vtf$") or string.match(filename, "%.vmt$") then
+        return "file"
     elseif string.match(filename, "%.exe$") then
         return "program"
     elseif string.match(filename, "%.dat$") then
@@ -222,7 +276,7 @@ end
 -- Check if a file should be stored as JSON
 function UTILS.IsJSONFile(filename)
     local fileType = UTILS.GetFileType(filename)
-    return fileType == "shortcut" or fileType == "config" or fileType == "data"
+    return fileType == "shortcut" or fileType == "image" or fileType == "config" or fileType == "data"
 end
 
 -- Check if path is to C:/ drive (vs ExternalDrive:/)
