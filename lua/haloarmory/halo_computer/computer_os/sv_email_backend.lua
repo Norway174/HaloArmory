@@ -7,11 +7,153 @@ local EMAIL = HALOARMORY.COMPUTER.EMAIL
 
 EMAIL.PendingRequests = EMAIL.PendingRequests or {}
 
+if CAMI and CAMI.RegisterPrivilege then
+    CAMI.RegisterPrivilege({
+        Name = EMAIL.CAMI_CONTACT_SET_PERMISSION,
+        MinAccess = "admin",
+        Description = "Create and manage HALO Computer email contact sets."
+    })
+end
+
 local function EnsureDirectory(path)
     if path and path ~= "" and not file.IsDir(path, "DATA") then
         file.CreateDir(path)
     end
     return path
+end
+
+local function EnsureServerStorageDirectory()
+    return EnsureDirectory(HALOARMORY.COMPUTER.Directory)
+end
+
+local function ReadJSONFile(path, fallback)
+    EnsureServerStorageDirectory()
+
+    if not path or not file.Exists(path, "DATA") then
+        return fallback
+    end
+
+    local raw = file.Read(path, "DATA")
+    if not raw or raw == "" then
+        return fallback
+    end
+
+    local success, payload = pcall(util.JSONToTable, raw)
+    if success and payload ~= nil then
+        return payload
+    end
+
+    return fallback
+end
+
+local function WriteJSONFile(path, payload)
+    EnsureServerStorageDirectory()
+
+    local json = util.TableToJSON(payload or {}, false)
+    if not json then
+        return false
+    end
+
+    file.Write(path, json)
+    return true
+end
+
+local function HasContactSetAdminAccess(ply)
+    if not IsValid(ply) or not ply:IsPlayer() then
+        return false
+    end
+
+    if CAMI and CAMI.PlayerHasAccess then
+        local success, allowed = pcall(CAMI.PlayerHasAccess, ply, EMAIL.CAMI_CONTACT_SET_PERMISSION)
+        if success then
+            return allowed == true
+        end
+    end
+
+    return ply:IsAdmin()
+end
+
+local function NormalizeContactSetMembers(rawMembers)
+    local members = {}
+    local seen = {}
+
+    for _, rawMember in ipairs(istable(rawMembers) and rawMembers or {}) do
+        local steamID64 = EMAIL.NormalizeSteamID64((istable(rawMember) and (rawMember.steamID64 or rawMember.steamID or rawMember.value)) or rawMember)
+        if steamID64 and not seen[steamID64] then
+            seen[steamID64] = true
+            table.insert(members, steamID64)
+        end
+    end
+
+    table.sort(members, function(a, b)
+        return tostring(a or "") < tostring(b or "")
+    end)
+
+    return members
+end
+
+local function NormalizeContactSet(rawSet)
+    if not istable(rawSet) then
+        return nil
+    end
+
+    local name = string.Trim(tostring(rawSet.name or rawSet.label or ""))
+    if name == "" then
+        return nil
+    end
+
+    return {
+        id = string.Trim(tostring(rawSet.id or EMAIL.GenerateUUID())),
+        name = name,
+        members = NormalizeContactSetMembers(rawSet.members),
+        updatedAt = tonumber(rawSet.updatedAt) or os.time(),
+        createdAt = tonumber(rawSet.createdAt) or os.time(),
+        createdBy = istable(rawSet.createdBy) and rawSet.createdBy or nil
+    }
+end
+
+local function LoadServerContactSets()
+    local stored = ReadJSONFile(EMAIL.SERVER_CONTACT_SETS_FILE, {})
+    local normalized = {}
+
+    for _, rawSet in ipairs(istable(stored) and stored or {}) do
+        local contactSet = NormalizeContactSet(rawSet)
+        if contactSet then
+            table.insert(normalized, contactSet)
+        end
+    end
+
+    table.sort(normalized, function(a, b)
+        return string.lower(tostring(a.name or "")) < string.lower(tostring(b.name or ""))
+    end)
+
+    return normalized
+end
+
+local function SaveServerContactSets(contactSets)
+    return WriteJSONFile(EMAIL.SERVER_CONTACT_SETS_FILE, contactSets or {})
+end
+
+local function BuildContactSetForSave(ply, payload, existingSet)
+    local normalized = NormalizeContactSet(payload)
+    if not normalized then
+        return nil, "Contact set name is required."
+    end
+
+    normalized.id = string.Trim(tostring((payload and payload.id) or (existingSet and existingSet.id) or normalized.id or EMAIL.GenerateUUID()))
+    if normalized.id == "" then
+        normalized.id = EMAIL.GenerateUUID()
+    end
+
+    normalized.createdAt = tonumber(existingSet and existingSet.createdAt) or normalized.createdAt or os.time()
+    normalized.createdBy = (existingSet and existingSet.createdBy) or {
+        steamID = ply:SteamID(),
+        steamID64 = ply:SteamID64(),
+        nickname = ply:Nick()
+    }
+    normalized.updatedAt = os.time()
+
+    return normalized
 end
 
 local function EnsureMailboxDirectory(steamID64)
@@ -620,7 +762,7 @@ local function HandleUpdateStateRequest(ply, requestId, payload)
     })
 end
 
-local function HandleOnlinePlayersRequest(ply, requestId)
+local function BuildOnlinePlayersPayload(ply)
     local playersPayload = {}
 
     for _, target in ipairs(player.GetAll()) do
@@ -636,6 +778,12 @@ local function HandleOnlinePlayersRequest(ply, requestId)
         return string.lower(a.nickname or "") < string.lower(b.nickname or "")
     end)
 
+    return playersPayload
+end
+
+local function HandleOnlinePlayersRequest(ply, requestId)
+    local playersPayload = BuildOnlinePlayersPayload(ply)
+
     DispatchResponse(ply, requestId, {
         success = true,
         players = playersPayload
@@ -646,6 +794,109 @@ local function HandleContactsRequest(ply, requestId)
     DispatchResponse(ply, requestId, {
         success = true,
         contacts = CollectContactsForPlayer(ply:SteamID64())
+    })
+end
+
+local function HandleContactDirectoryRequest(ply, requestId)
+    DispatchResponse(ply, requestId, {
+        success = true,
+        contacts = CollectContactsForPlayer(ply:SteamID64()),
+        players = BuildOnlinePlayersPayload(ply),
+        serverSets = LoadServerContactSets(),
+        adminAccess = HasContactSetAdminAccess(ply)
+    })
+end
+
+local function HandleSaveContactSetRequest(ply, requestId, payload)
+    if not HasContactSetAdminAccess(ply) then
+        DispatchResponse(ply, requestId, {
+            success = false,
+            message = "You do not have permission to manage contact sets.",
+            adminAccess = false,
+            serverSets = LoadServerContactSets()
+        })
+        return
+    end
+
+    local currentSets = LoadServerContactSets()
+    local existingSet = nil
+    local targetId = string.Trim(tostring(payload.id or ""))
+
+    for _, contactSet in ipairs(currentSets) do
+        if targetId ~= "" and tostring(contactSet.id or "") == targetId then
+            existingSet = contactSet
+            break
+        end
+    end
+
+    local normalizedSet, err = BuildContactSetForSave(ply, payload, existingSet)
+    if not normalizedSet then
+        DispatchResponse(ply, requestId, {
+            success = false,
+            message = err or "Failed to save contact set.",
+            adminAccess = true,
+            serverSets = currentSets
+        })
+        return
+    end
+
+    local replaced = false
+    for index, contactSet in ipairs(currentSets) do
+        if tostring(contactSet.id or "") == tostring(normalizedSet.id or "") then
+            currentSets[index] = normalizedSet
+            replaced = true
+            break
+        end
+    end
+
+    if not replaced then
+        table.insert(currentSets, normalizedSet)
+    end
+
+    table.sort(currentSets, function(a, b)
+        return string.lower(tostring(a.name or "")) < string.lower(tostring(b.name or ""))
+    end)
+
+    SaveServerContactSets(currentSets)
+
+    DispatchResponse(ply, requestId, {
+        success = true,
+        serverSet = normalizedSet,
+        serverSets = currentSets,
+        adminAccess = true
+    })
+end
+
+local function HandleDeleteContactSetRequest(ply, requestId, payload)
+    if not HasContactSetAdminAccess(ply) then
+        DispatchResponse(ply, requestId, {
+            success = false,
+            message = "You do not have permission to manage contact sets.",
+            adminAccess = false,
+            serverSets = LoadServerContactSets()
+        })
+        return
+    end
+
+    local targetId = string.Trim(tostring(payload.id or ""))
+    local currentSets = LoadServerContactSets()
+    local keptSets = {}
+    local deleted = false
+
+    for _, contactSet in ipairs(currentSets) do
+        if targetId ~= "" and tostring(contactSet.id or "") == targetId then
+            deleted = true
+        else
+            table.insert(keptSets, contactSet)
+        end
+    end
+
+    SaveServerContactSets(keptSets)
+
+    DispatchResponse(ply, requestId, {
+        success = deleted,
+        serverSets = keptSets,
+        adminAccess = true
     })
 end
 
@@ -777,6 +1028,12 @@ local function HandleRequestPayload(ply, requestId, payload)
         HandleOnlinePlayersRequest(ply, requestId)
     elseif action == EMAIL.ACTION_CONTACTS then
         HandleContactsRequest(ply, requestId)
+    elseif action == EMAIL.ACTION_CONTACT_DIRECTORY then
+        HandleContactDirectoryRequest(ply, requestId)
+    elseif action == EMAIL.ACTION_SAVE_CONTACT_SET then
+        HandleSaveContactSetRequest(ply, requestId, payload)
+    elseif action == EMAIL.ACTION_DELETE_CONTACT_SET then
+        HandleDeleteContactSetRequest(ply, requestId, payload)
     else
         DispatchResponse(ply, requestId, {
             success = false,

@@ -16,6 +16,7 @@ function NOTES.GetContent()
             </div>
         </div>
         <button class="notes-save-btn" id="notes-save-btn" onclick="notesApp.saveNote()" style="display: none;">Save</button>
+        <button class="notes-discard-btn" id="notes-discard-btn" onclick="notesApp.discardChanges()" style="display: none;">Discard</button>
         <button class="notes-mode-btn" id="notes-mode-btn" onclick="notesApp.toggleMode()">Preview</button>
     </div>
     <div class="notes-formatting-toolbar" id="notes-formatting-toolbar" style="display: none;">
@@ -53,7 +54,7 @@ function NOTES.GetInitScript()
 end
 
 function NOTES.GetJavaScript()
-    return [[
+    return [=[
 var notesApp = {
     currentFilePath: null,
     currentFileName: null,
@@ -71,18 +72,29 @@ var notesApp = {
     supportedExtensions: ['.txt', '.dat', '.json', '.xml', '.csv', '.dem', '.vcd', '.gma', '.mdl', '.phy', '.vvd', '.vtx', '.ani', '.vtf', '.vmt', '.png', '.jpg', '.jpeg', '.mp3', '.wav', '.ogg'],
     
     init: function(windowId) {
+        var self = this;
         this.windowId = windowId;
-        this.editor = document.getElementById('notes-editor');
-        this.preview = document.getElementById('notes-preview');
+        var root = this.getRootElement();
+        this.editor = this.queryElement('#notes-editor');
+        this.preview = this.queryElement('#notes-preview');
         
         // Store instance reference for this window
         window['notesApp_' + windowId] = this;
+        this.setAsActiveInstance();
         
         if (this.editor) {
-            var self = this;
             this.editor.addEventListener('input', function() {
                 self.onContentChange();
                 self.updatePreview();
+            });
+        }
+
+        if (root) {
+            root.addEventListener('mousedown', function() {
+                self.setAsActiveInstance();
+            });
+            root.addEventListener('focusin', function() {
+                self.setAsActiveInstance();
             });
         }
         
@@ -90,7 +102,6 @@ var notesApp = {
         this.setupDropdown();
         
         // Listen for filesystem changes to detect if current file was deleted/renamed
-        var self = this;
         document.addEventListener('filesystemsynced', function() {
             // When filesystem syncs, check if our current file still exists
             if (self.currentFilePath) {
@@ -108,7 +119,6 @@ var notesApp = {
         });
         
         // Check for pending file open
-        var self = this;
         setTimeout(function() {
             var handledPendingOpen = false;
             var windowEl = document.getElementById(windowId);
@@ -196,12 +206,44 @@ var notesApp = {
         this.addToTaskbar();
         
         // Listen for window closing event (in case window is closed via window manager)
-        var self = this;
         document.addEventListener('windowclosing', function(e) {
             if (e.detail && e.detail.id === windowId) {
                 self.removeFromTaskbar();
+                if (window.notesApp && window.notesApp.unregisterInstance) {
+                    window.notesApp.unregisterInstance(windowId);
+                }
             }
         });
+    },
+
+    getRootElement: function() {
+        return this.windowId ? document.getElementById(this.windowId) : null;
+    },
+
+    queryElement: function(selector) {
+        var root = this.getRootElement();
+        return root ? root.querySelector(selector) : null;
+    },
+
+    setAsActiveInstance: function() {
+        if (window.notesApp && window.notesApp.setActiveWindowId) {
+            window.notesApp.setActiveWindowId(this.windowId);
+        }
+    },
+
+    updateActionButtons: function() {
+        var saveBtn = this.queryElement('#notes-save-btn');
+        var discardBtn = this.queryElement('#notes-discard-btn');
+        var shouldShow = this.isEditMode || this.hasUnsavedChanges;
+
+        [saveBtn, discardBtn].forEach(function(button) {
+            if (!button) {
+                return;
+            }
+
+            button.style.display = shouldShow ? 'block' : 'none';
+            button.disabled = !this.hasUnsavedChanges;
+        }.bind(this));
     },
     
     addToTaskbar: function() {
@@ -269,8 +311,8 @@ var notesApp = {
     },
     
     setupDropdown: function() {
-        var menuBtn = document.getElementById('notes-file-menu-btn');
-        var menu = document.getElementById('notes-file-menu');
+        var menuBtn = this.queryElement('#notes-file-menu-btn');
+        var menu = this.queryElement('#notes-file-menu');
         
         if (!menuBtn || !menu) return;
         
@@ -317,26 +359,25 @@ var notesApp = {
             this.isEditMode = !this.isEditMode;
         }
         
-        var editor = document.getElementById('notes-editor');
-        var preview = document.getElementById('notes-preview');
-        var toolbar = document.getElementById('notes-formatting-toolbar');
-        var modeBtn = document.getElementById('notes-mode-btn');
-        var saveBtn = document.getElementById('notes-save-btn');
+        var editor = this.queryElement('#notes-editor');
+        var preview = this.queryElement('#notes-preview');
+        var toolbar = this.queryElement('#notes-formatting-toolbar');
+        var modeBtn = this.queryElement('#notes-mode-btn');
         
         if (this.isEditMode) {
             if (editor) editor.style.display = 'block';
             if (preview) preview.style.display = 'none';
             if (toolbar) toolbar.style.display = 'flex';
             if (modeBtn) modeBtn.textContent = 'Preview';
-            if (saveBtn) saveBtn.style.display = 'block';
         } else {
             if (editor) editor.style.display = 'none';
             if (preview) preview.style.display = 'block';
             if (toolbar) toolbar.style.display = 'none';
             if (modeBtn) modeBtn.textContent = 'Edit';
-            if (saveBtn) saveBtn.style.display = 'none';
             this.updatePreview();
         }
+
+        this.updateActionButtons();
     },
     
     formatText: function(format) {
@@ -437,6 +478,7 @@ var notesApp = {
         } else {
             this.hasUnsavedChanges = false;
         }
+        this.updateActionButtons();
         this.updateWindowTitle();
     },
     
@@ -558,6 +600,19 @@ var notesApp = {
         this.savedContent = '';
         this.hasUnsavedChanges = false;
         this.updatePreview();
+        this.updateActionButtons();
+        this.updateWindowTitle();
+    },
+
+    discardChanges: function() {
+        if (!this.editor) {
+            return;
+        }
+
+        this.editor.value = this.savedContent || '';
+        this.hasUnsavedChanges = false;
+        this.updatePreview();
+        this.updateActionButtons();
         this.updateWindowTitle();
     },
     
@@ -647,6 +702,7 @@ var notesApp = {
                 self.savedContent = content;
                 self.hasUnsavedChanges = false;
                 self.lastSaveFolder = sanitizedPath.substring(0, sanitizedPath.lastIndexOf('/') + 1);
+                self.updateActionButtons();
                 self.updateWindowTitle();
                 
                 // Check if we should close after save
@@ -820,6 +876,9 @@ var notesApp = {
     closeWindow: function() {
         // Remove from taskbar
         this.removeFromTaskbar();
+        if (window.notesApp && window.notesApp.unregisterInstance) {
+            window.notesApp.unregisterInstance(this.windowId);
+        }
         
         // Proceed with close
         if (window.windowManager && window.windowManager.close) {
@@ -863,14 +922,127 @@ var notesApp = {
         // Update UI - sync without toggling
         this.toggleMode(false, targetMode);
         this.updatePreview();
+        this.updateActionButtons();
         this.updateWindowTitle();
     },
     
 };
 
+var notesAppPrototype = notesApp;
+var notesAppManager = {
+    instances: {},
+    activeWindowId: null,
+
+    init: function(windowId) {
+        var instance = Object.create(notesAppPrototype);
+        instance.currentFilePath = null;
+        instance.currentFileName = null;
+        instance.currentFileExtension = '.txt';
+        instance.editor = null;
+        instance.preview = null;
+        instance.windowId = null;
+        instance.isEditMode = true;
+        instance.hasUnsavedChanges = false;
+        instance.savedContent = '';
+        instance.lastSaveFolder = 'C:/';
+        instance.currentFileIsDetached = false;
+        instance.missingBackingFile = false;
+        instance.closeAfterSave = false;
+
+        this.instances[windowId] = instance;
+        notesAppPrototype.init.call(instance, windowId);
+        this.activeWindowId = windowId;
+        return instance;
+    },
+
+    unregisterInstance: function(windowId) {
+        if (!windowId) {
+            return;
+        }
+
+        delete this.instances[windowId];
+        if (this.activeWindowId === windowId) {
+            this.activeWindowId = null;
+        }
+    },
+
+    setActiveWindowId: function(windowId) {
+        if (windowId && this.instances[windowId]) {
+            this.activeWindowId = windowId;
+        }
+    },
+
+    getInstance: function(windowId) {
+        if (windowId && this.instances[windowId]) {
+            return this.instances[windowId];
+        }
+
+        var eventTarget = window.event && (window.event.target || window.event.srcElement);
+        var eventWindow = eventTarget && eventTarget.closest ? eventTarget.closest('.os-window') : null;
+        if (eventWindow && eventWindow.id && this.instances[eventWindow.id]) {
+            this.activeWindowId = eventWindow.id;
+            return this.instances[eventWindow.id];
+        }
+
+        var activeWindowId = this.activeWindowId || (window.windowManager && window.windowManager.activeWindow);
+        if (activeWindowId && this.instances[activeWindowId]) {
+            this.activeWindowId = activeWindowId;
+            return this.instances[activeWindowId];
+        }
+
+        var windowIds = Object.keys(this.instances);
+        if (windowIds.length === 1) {
+            this.activeWindowId = windowIds[0];
+            return this.instances[windowIds[0]];
+        }
+
+        return null;
+    },
+
+    callInstance: function(methodName, args) {
+        var instance = this.getInstance();
+        if (!instance || typeof instance[methodName] !== 'function') {
+            return;
+        }
+
+        instance.setAsActiveInstance();
+        return instance[methodName].apply(instance, args || []);
+    },
+
+    newNote: function() {
+        return this.callInstance('newNote', arguments);
+    },
+
+    saveNote: function() {
+        return this.callInstance('saveNote', arguments);
+    },
+
+    saveNoteAs: function() {
+        return this.callInstance('saveNoteAs', arguments);
+    },
+
+    loadNote: function() {
+        return this.callInstance('loadNote', arguments);
+    },
+
+    toggleMode: function() {
+        return this.callInstance('toggleMode', arguments);
+    },
+
+    formatText: function(format) {
+        return this.callInstance('formatText', arguments);
+    },
+
+    discardChanges: function() {
+        return this.callInstance('discardChanges', arguments);
+    }
+};
+
+notesApp = notesAppManager;
+
 // Make globally accessible
 window.notesApp = notesApp;
-]]
+]=]
 end
 
 function NOTES.GetCSS()
@@ -928,6 +1100,35 @@ function NOTES.GetCSS()
 
 .notes-save-btn:hover {
     background: var(--color-button-hover-bg, #106ebe);
+}
+
+.notes-discard-btn {
+    padding: 6px 12px;
+    background: var(--color-button-muted-bg, #3a3a3a);
+    border: 1px solid var(--color-window-border, #555);
+    color: var(--color-text-on-button, #fff);
+    cursor: pointer;
+    border-radius: var(--radius-ui-small, 4px);
+    font-size: 12px;
+    transition: background 0.15s;
+}
+
+.notes-discard-btn:hover {
+    background: var(--color-button-hover-bg, #4a4a4a);
+}
+
+.notes-save-btn:disabled,
+.notes-discard-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.notes-save-btn:disabled:hover {
+    background: var(--color-button-bg, #0078d4);
+}
+
+.notes-discard-btn:disabled:hover {
+    background: var(--color-button-muted-bg, #3a3a3a);
 }
 
 .notes-dropdown-menu {

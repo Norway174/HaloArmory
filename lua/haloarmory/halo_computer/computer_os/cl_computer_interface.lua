@@ -249,7 +249,10 @@ function PANEL:Init()
 		return
 	end
 
-	self:SetSize(ScrW() - 150, ScrH() - 150)
+	local frameWidth = math.min(ScrW() - 10, 1280)
+	local frameHeight = math.min(ScrH() - 10, 720)
+
+	self:SetSize(frameWidth, frameHeight)
 	self:Center()
 	self:MakePopup()
 	self:SetTitle(BuildInterfaceTitle(self.entity or HALOARMORY.COMPUTER.INTERFACE.entity))

@@ -13,6 +13,7 @@ function EMAIL.GetContent()
             <button class="email-folder" data-folder="trash">Trash</button>
         </div>
         <div class="email-sidebar-bottom">
+            <button class="email-folder" data-folder="contacts">Contacts</button>
             <div class="email-storage-widget"></div>
             <div class="email-user-widget"></div>
         </div>
@@ -36,7 +37,7 @@ function EMAIL.GetInitScript()
 end
 
 function EMAIL.GetJavaScript()
-    return [[
+    return [=[
 if (!window.emailBridge) {
     window.emailBridge = {
         callbacks: {},
@@ -112,9 +113,24 @@ var emailApp = {
             onlinePlayers: [],
             contacts: [],
             favorites: [],
+            localAliases: [],
+            localLists: [],
+            serverSets: [],
+            adminAccess: false,
             drafts: [],
             compose: this.createEmptyComposeState(),
+            contactsTab: 'local',
+            localContactsSubTab: 'favorites',
+            localContactDraft: {
+                steamIdInput: '',
+                nickname: ''
+            },
+            favoriteInlineEditKey: '',
+            favoriteInlineEditValue: '',
+            localListEditor: this.createCollectionEditorState('local_list'),
+            serverSetEditor: this.createCollectionEditorState('server_set'),
             recipientQuery: '',
+            recipientDropdownTab: 'all',
             recipientDropdownOpen: false,
             recipientBlurTimer: null,
             autosaveTimer: null
@@ -137,6 +153,138 @@ var emailApp = {
             previewMode: false,
             dirty: false
         };
+    },
+
+    createCollectionEditorState: function(kind) {
+        return {
+            kind: kind || 'collection',
+            id: null,
+            name: '',
+            members: [],
+            manualMemberInput: ''
+        };
+    },
+
+    resetCollectionEditorState: function(editor, kind) {
+        if (!editor) {
+            return this.createCollectionEditorState(kind);
+        }
+
+        editor.kind = kind || editor.kind || 'collection';
+        editor.id = null;
+        editor.name = '';
+        editor.members = [];
+        editor.manualMemberInput = '';
+        return editor;
+    },
+
+    cloneAttachment: function(attachment) {
+        if (!attachment) {
+            return null;
+        }
+
+        var displayName = attachment.displayName || attachment.filename || attachment.name || 'attachment';
+        var filepath = attachment.filepath || null;
+        var sourcePath = attachment.sourcePath || filepath || '';
+
+        return {
+            filepath: filepath,
+            sourcePath: sourcePath,
+            filename: attachment.filename || displayName,
+            displayName: displayName,
+            filetype: attachment.filetype || '',
+            content: attachment.content !== undefined ? attachment.content : null
+        };
+    },
+
+    cloneAttachments: function(attachments) {
+        if (!Array.isArray(attachments)) {
+            return [];
+        }
+
+        return attachments.map(function(attachment) {
+            return this.cloneAttachment(attachment);
+        }.bind(this)).filter(function(attachment) {
+            return !!attachment;
+        });
+    },
+
+    getRecipientKind: function(recipient) {
+        var kind = String((recipient && recipient.kind) || 'contact').toLowerCase();
+        if (kind === 'local_list' || kind === 'server_set') {
+            return kind;
+        }
+        return 'contact';
+    },
+
+    getRecipientKey: function(recipient) {
+        if (!recipient) {
+            return '';
+        }
+
+        if (recipient.key) {
+            return String(recipient.key);
+        }
+
+        var kind = this.getRecipientKind(recipient);
+        if (kind === 'local_list') {
+            return 'local_list:' + String(recipient.listId || recipient.id || recipient.name || '');
+        }
+
+        if (kind === 'server_set') {
+            return 'server_set:' + String(recipient.setId || recipient.id || recipient.name || '');
+        }
+
+        return 'contact:' + String(recipient.steamID64 || recipient.steamID || recipient.nickname || '');
+    },
+
+    cloneRecipient: function(recipient) {
+        if (!recipient) {
+            return null;
+        }
+
+        var kind = this.getRecipientKind(recipient);
+        if (kind === 'local_list') {
+            return {
+                kind: 'local_list',
+                key: this.getRecipientKey(recipient),
+                listId: recipient.listId || recipient.id || '',
+                name: recipient.name || recipient.nickname || 'Local List',
+                members: Array.isArray(recipient.members) ? recipient.members.slice() : [],
+                memberCount: parseInt(recipient.memberCount || (recipient.members && recipient.members.length) || 0, 10) || 0
+            };
+        }
+
+        if (kind === 'server_set') {
+            return {
+                kind: 'server_set',
+                key: this.getRecipientKey(recipient),
+                setId: recipient.setId || recipient.id || '',
+                name: recipient.name || recipient.nickname || 'Contact Set',
+                members: Array.isArray(recipient.members) ? recipient.members.slice() : [],
+                memberCount: parseInt(recipient.memberCount || (recipient.members && recipient.members.length) || 0, 10) || 0
+            };
+        }
+
+        return {
+            kind: 'contact',
+            key: this.getRecipientKey(recipient),
+            steamID: recipient.steamID || '',
+            steamID64: recipient.steamID64 || '',
+            nickname: recipient.nickname || recipient.steamID || recipient.steamID64 || 'Unknown Contact'
+        };
+    },
+
+    cloneRecipients: function(recipients) {
+        if (!Array.isArray(recipients)) {
+            return [];
+        }
+
+        return recipients.map(function(recipient) {
+            return this.cloneRecipient(recipient);
+        }.bind(this)).filter(function(recipient) {
+            return !!recipient;
+        });
     },
 
     bindCleanup: function() {
@@ -219,13 +367,6 @@ var emailApp = {
     },
 
     loadInitialData: function(windowId) {
-        this.request(windowId, 'load_favorites', {}, function(payload) {
-            var instance = this.getInstance(windowId);
-            if (!instance) return;
-            instance.favorites = Array.isArray(payload.favorites) ? payload.favorites : [];
-            this.render(windowId);
-        }.bind(this));
-
         this.request(windowId, 'load_drafts', {}, function(payload) {
             var instance = this.getInstance(windowId);
             if (!instance) return;
@@ -233,21 +374,23 @@ var emailApp = {
             this.render(windowId);
         }.bind(this));
 
-        this.request(windowId, 'contacts', {}, function(payload) {
-            var instance = this.getInstance(windowId);
-            if (!instance) return;
-            instance.contacts = Array.isArray(payload.contacts) ? payload.contacts : [];
-            this.render(windowId);
-        }.bind(this));
-
-        this.request(windowId, 'online_players', {}, function(payload) {
-            var instance = this.getInstance(windowId);
-            if (!instance) return;
-            instance.onlinePlayers = Array.isArray(payload.players) ? payload.players : [];
-            this.render(windowId);
-        }.bind(this));
-
+        this.refreshLocalContactData(windowId, { render: true });
+        this.refreshContactDirectory(windowId, { render: true });
         this.showFolder(windowId, 'inbox');
+    },
+
+    refreshLocalContactData: function(windowId, options) {
+        this.request(windowId, 'load_local_contact_data', {}, function(payload) {
+            var instance = this.getInstance(windowId);
+            if (!instance) return;
+            instance.favorites = Array.isArray(payload.favorites) ? payload.favorites : [];
+            instance.localAliases = Array.isArray(payload.aliases) ? payload.aliases : [];
+            instance.localLists = Array.isArray(payload.localLists) ? payload.localLists : [];
+
+            if (!options || options.render !== false) {
+                this.render(windowId);
+            }
+        }.bind(this));
     },
 
     request: function(windowId, action, payload, callback) {
@@ -256,6 +399,22 @@ var emailApp = {
                 callback(response || {});
             }
         });
+    },
+
+    refreshContactDirectory: function(windowId, options) {
+        this.request(windowId, 'contact_directory', {}, function(payload) {
+            var instance = this.getInstance(windowId);
+            if (!instance) return;
+
+            instance.contacts = Array.isArray(payload.contacts) ? payload.contacts : [];
+            instance.onlinePlayers = Array.isArray(payload.players) ? payload.players : [];
+            instance.serverSets = Array.isArray(payload.serverSets) ? payload.serverSets : [];
+            instance.adminAccess = payload.adminAccess === true;
+
+            if (!options || options.render !== false) {
+                this.render(windowId);
+            }
+        }.bind(this));
     },
 
     showFolder: function(windowId, folder) {
@@ -271,6 +430,17 @@ var emailApp = {
         instance.loading = true;
 
         this.render(windowId);
+
+        if (folder === 'contacts') {
+            instance.loading = false;
+            instance.currentView = 'contacts';
+            instance.contactsTab = 'local';
+            instance.localContactsSubTab = 'favorites';
+            this.refreshLocalContactData(windowId, { render: true });
+            this.refreshContactDirectory(windowId, { render: true });
+            this.render(windowId);
+            return;
+        }
 
         if (folder === 'drafts') {
             this.request(windowId, 'load_drafts', {}, function(payload) {
@@ -304,10 +474,10 @@ var emailApp = {
         if (existingDraft) {
             instance.compose = {
                 draftId: existingDraft.id || null,
-                recipients: Array.isArray(existingDraft.recipients) ? existingDraft.recipients.slice() : [],
+                recipients: this.cloneRecipients(existingDraft.recipients),
                 subject: existingDraft.subject || '',
                 bodyMarkdown: existingDraft.bodyMarkdown || '',
-                attachments: Array.isArray(existingDraft.attachments) ? existingDraft.attachments.slice() : [],
+                attachments: this.cloneAttachments(existingDraft.attachments),
                 previewMode: false,
                 dirty: false
             };
@@ -316,6 +486,7 @@ var emailApp = {
         }
 
         instance.recipientQuery = '';
+        instance.recipientDropdownTab = 'all';
         instance.recipientDropdownOpen = false;
         instance.currentView = 'compose';
         instance.loading = false;
@@ -383,21 +554,37 @@ var emailApp = {
             return;
         }
 
-        this.request(windowId, 'save_draft', {
-            id: instance.compose.draftId,
-            recipients: instance.compose.recipients,
-            subject: instance.compose.subject,
-            bodyMarkdown: instance.compose.bodyMarkdown,
-            attachments: instance.compose.attachments
-        }, function(payload) {
+        this.resolveAttachmentContents(windowId, function(resolvedAttachments) {
             var current = this.getInstance(windowId);
-            if (!current || !payload.success || !payload.draft) {
+            if (!current || current.currentView !== 'compose') {
                 return;
             }
 
-            current.compose.draftId = payload.draft.id;
-            current.compose.dirty = false;
-            this.refreshDrafts(windowId);
+            var draftAttachments = resolvedAttachments.map(function(attachment, index) {
+                var hydrated = this.cloneAttachment(attachment) || {};
+                var existing = current.compose.attachments[index] || {};
+                hydrated.filepath = existing.filepath || null;
+                hydrated.sourcePath = existing.sourcePath || existing.filepath || '';
+                return hydrated;
+            }.bind(this));
+
+            this.request(windowId, 'save_draft', {
+                id: current.compose.draftId,
+                recipients: current.compose.recipients,
+                subject: current.compose.subject,
+                bodyMarkdown: current.compose.bodyMarkdown,
+                attachments: draftAttachments
+            }, function(payload) {
+                var latest = this.getInstance(windowId);
+                if (!latest || !payload.success || !payload.draft) {
+                    return;
+                }
+
+                latest.compose.draftId = payload.draft.id;
+                latest.compose.attachments = this.cloneAttachments(draftAttachments);
+                latest.compose.dirty = false;
+                this.refreshDrafts(windowId);
+            }.bind(this));
         }.bind(this));
     },
 
@@ -475,6 +662,7 @@ var emailApp = {
 
             var attachment = {
                 filepath: item.filepath,
+                sourcePath: item.filepath,
                 filename: item.filename || item.displayName || item.name || window.getFileNameFromPath(item.filepath),
                 displayName: item.filename || item.displayName || item.name || window.getFileNameFromPath(item.filepath),
                 filetype: item.filetype || window.getFileTypeFromPath(item.filepath),
@@ -533,6 +721,7 @@ var emailApp = {
             case 'sent': return 'Sent';
             case 'drafts': return 'Drafts';
             case 'trash': return 'Trash';
+            case 'contacts': return 'Contacts';
             default: return 'Inbox';
         }
     },
@@ -656,7 +845,7 @@ var emailApp = {
         instance.compose.recipients = [original.sender];
         instance.compose.subject = subject;
         instance.compose.bodyMarkdown = '\n\n' + quoted;
-        instance.compose.attachments = [];
+        instance.compose.attachments = this.cloneAttachments(original.attachments);
         instance.compose.dirty = true;
         instance.compose.previewMode = false;
         instance.currentView = 'compose';
@@ -678,7 +867,7 @@ var emailApp = {
         instance.compose = this.createEmptyComposeState();
         instance.compose.subject = subject;
         instance.compose.bodyMarkdown = original.bodyMarkdown || '';
-        instance.compose.attachments = Array.isArray(original.attachments) ? original.attachments.slice() : [];
+        instance.compose.attachments = this.cloneAttachments(original.attachments);
         instance.compose.dirty = true;
         instance.compose.previewMode = false;
         instance.currentView = 'compose';
@@ -969,6 +1158,417 @@ var emailApp = {
         return ordered.slice(0, 24);
     },
 
+    getLocalAlias: function(instance, contact) {
+        if (!instance || !contact) {
+            return null;
+        }
+
+        var key = String(contact.steamID64 || contact.steamID || '');
+        if (!key) {
+            return null;
+        }
+
+        var matched = null;
+        (instance.localAliases || []).some(function(alias) {
+            if (String(alias.steamID64 || alias.steamID || '') === key) {
+                matched = alias;
+                return true;
+            }
+            return false;
+        });
+
+        return matched;
+    },
+
+    applyLocalAlias: function(instance, contact) {
+        if (!contact) {
+            return contact;
+        }
+
+        var alias = this.getLocalAlias(instance, contact);
+        return {
+            kind: contact.kind || 'contact',
+            steamID: contact.steamID || (alias && alias.steamID) || '',
+            steamID64: contact.steamID64 || (alias && alias.steamID64) || '',
+            nickname: (alias && alias.nickname) || contact.nickname || contact.steamID || contact.steamID64 || 'Unknown Contact'
+        };
+    },
+
+    createContactRecipient: function(instance, contact) {
+        return this.cloneRecipient(this.applyLocalAlias(instance, {
+            kind: 'contact',
+            steamID: contact.steamID || '',
+            steamID64: contact.steamID64 || '',
+            nickname: contact.nickname || contact.steamID || contact.steamID64 || 'Unknown Contact'
+        }));
+    },
+
+    createCollectionRecipient: function(kind, collection) {
+        var normalizedKind = kind === 'server_set' ? 'server_set' : 'local_list';
+        return this.cloneRecipient({
+            kind: normalizedKind,
+            id: collection.id || '',
+            listId: normalizedKind === 'local_list' ? (collection.id || collection.listId || '') : '',
+            setId: normalizedKind === 'server_set' ? (collection.id || collection.setId || '') : '',
+            name: collection.name || collection.label || 'Collection',
+            members: Array.isArray(collection.members) ? collection.members.slice() : [],
+            memberCount: Array.isArray(collection.members) ? collection.members.length : (collection.memberCount || 0)
+        });
+    },
+
+    isFavorite: function(instance, contact) {
+        if (!contact) {
+            return false;
+        }
+
+        var key = String(this.getRecipientKey(contact) || '');
+        return (instance.favorites || []).some(function(favorite) {
+            return String(this.getRecipientKey(favorite) || '') === key;
+        }.bind(this));
+    },
+
+    isSetRecipient: function(recipient) {
+        var kind = this.getRecipientKind(recipient);
+        return kind === 'local_list' || kind === 'server_set';
+    },
+
+    isContactRecipient: function(recipient) {
+        return this.getRecipientKind(recipient) === 'contact';
+    },
+
+    getFavoriteCollections: function(instance) {
+        return this.getCollectionOptions(instance).filter(function(recipient) {
+            return this.isFavorite(instance, recipient);
+        });
+    },
+
+    getContactOptions: function(instance) {
+        var merged = {};
+        var ordered = [];
+
+        var ingest = function(contact) {
+            if (!contact) return;
+            var key = String(contact.steamID64 || contact.steamID || '').toLowerCase();
+            if (!key) return;
+
+            var next = this.applyLocalAlias(instance, {
+                kind: 'contact',
+                steamID: contact.steamID || '',
+                steamID64: contact.steamID64 || '',
+                nickname: contact.nickname || contact.steamID || contact.steamID64 || 'Unknown Contact'
+            });
+
+            if (!merged[key]) {
+                merged[key] = next;
+                ordered.push(merged[key]);
+                return;
+            }
+
+            if ((!merged[key].nickname || merged[key].nickname === merged[key].steamID || merged[key].nickname === merged[key].steamID64) && next.nickname) {
+                merged[key].nickname = next.nickname;
+            }
+        }.bind(this);
+
+        (instance.favorites || []).forEach(ingest);
+        (instance.onlinePlayers || []).forEach(ingest);
+        (instance.contacts || []).forEach(ingest);
+        (instance.localAliases || []).forEach(ingest);
+
+        ordered.sort(function(a, b) {
+            var scoreA = this.isFavorite(instance, a) ? 0 : ((instance.onlinePlayers || []).some(function(contact) {
+                return String(contact.steamID64 || contact.steamID || '') === String(a.steamID64 || a.steamID || '');
+            }) ? 1 : 2);
+
+            var scoreB = this.isFavorite(instance, b) ? 0 : ((instance.onlinePlayers || []).some(function(contact) {
+                return String(contact.steamID64 || contact.steamID || '') === String(b.steamID64 || b.steamID || '');
+            }) ? 1 : 2);
+
+            if (scoreA !== scoreB) {
+                return scoreA - scoreB;
+            }
+
+            return String(a.nickname || '').localeCompare(String(b.nickname || ''));
+        }.bind(this));
+
+        return ordered;
+    },
+
+    getCollectionOptions: function(instance) {
+        var localOptions = (instance.localLists || []).map(function(collection) {
+            return this.createCollectionRecipient('local_list', collection);
+        }.bind(this));
+
+        var serverOptions = (instance.serverSets || []).map(function(collection) {
+            return this.createCollectionRecipient('server_set', collection);
+        }.bind(this));
+
+        return localOptions.concat(serverOptions);
+    },
+
+    getRecipientDisplayLabel: function(instance, recipient) {
+        var kind = this.getRecipientKind(recipient);
+        if (kind === 'local_list' || kind === 'server_set') {
+            return recipient.name || recipient.nickname || 'Collection';
+        }
+
+        var aliased = this.applyLocalAlias(instance, recipient);
+        return aliased.nickname || aliased.steamID || aliased.steamID64 || 'Unknown Contact';
+    },
+
+    getRecipientOptionMeta: function(instance, recipient) {
+        var kind = this.getRecipientKind(recipient);
+        if (kind === 'local_list' || kind === 'server_set') {
+            var memberCount = parseInt(recipient.memberCount || (recipient.members && recipient.members.length) || 0, 10) || 0;
+            var collectionMeta = [];
+            if (this.isFavorite(instance, recipient)) {
+                collectionMeta.push('Favorite');
+            }
+            collectionMeta.push((kind === 'local_list' ? 'Local list' : 'Admin set') + ' • ' + memberCount + ' member(s)');
+            return collectionMeta.join(' • ');
+        }
+
+        var meta = [];
+        if (this.isFavorite(instance, recipient)) {
+            meta.push('Favorite');
+        }
+
+        var alias = this.getLocalAlias(instance, recipient);
+        if (alias && alias.nickname && alias.nickname !== recipient.nickname) {
+            meta.push('Nickname');
+        }
+
+        meta.push(recipient.steamID || recipient.steamID64 || 'Unknown');
+        return meta.join(' • ');
+    },
+
+    getRecipientDropdownTab: function(instance) {
+        var tab = String(instance && instance.recipientDropdownTab || 'all');
+        if (tab === 'favorites' || tab === 'players' || tab === 'sets') {
+            return tab;
+        }
+        return 'all';
+    },
+
+    setRecipientDropdownTab: function(windowId, tab) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        instance.recipientDropdownTab = this.getRecipientDropdownTab({ recipientDropdownTab: tab });
+        instance.recipientDropdownOpen = true;
+        this.refreshRecipientDropdown(windowId);
+        this.focusRecipientInput(windowId);
+    },
+
+    renderRecipientDropdownContents: function(instance) {
+        var activeTab = this.getRecipientDropdownTab(instance);
+        var options = instance.recipientDropdownOpen ? this.getRecipientOptions(instance, instance.recipientQuery, activeTab) : [];
+        var html = '<div class="email-recipient-dropdown-tabs">' +
+            '<button class="email-recipient-dropdown-tab ' + (activeTab === 'all' ? 'active' : '') + '" data-recipient-tab="all">All</button>' +
+            '<button class="email-recipient-dropdown-tab ' + (activeTab === 'favorites' ? 'active' : '') + '" data-recipient-tab="favorites">Favorites</button>' +
+            '<button class="email-recipient-dropdown-tab ' + (activeTab === 'players' ? 'active' : '') + '" data-recipient-tab="players">Players</button>' +
+            '<button class="email-recipient-dropdown-tab ' + (activeTab === 'sets' ? 'active' : '') + '" data-recipient-tab="sets">Sets</button>' +
+        '</div>';
+
+        if (options.length) {
+            html += '<div class="email-recipient-dropdown-list">';
+            options.forEach(function(option) {
+                var kind = this.getRecipientKind(option);
+                var favorite = this.isFavorite(instance, option);
+                html += '<div class="email-recipient-option email-recipient-option-' + this.escapeHtml(kind) + '" data-recipient-key="' + this.escapeHtml(this.getRecipientKey(option)) + '">' +
+                    '<button class="email-favorite-toggle' + (favorite ? ' is-active' : '') + '" data-favorite-key="' + this.escapeHtml(this.getRecipientKey(option)) + '" aria-label="' + this.escapeHtml(favorite ? 'Remove favorite' : 'Add favorite') + '">' + (favorite ? '★' : '☆') + '</button>' +
+                    '<div class="email-recipient-option-main">' +
+                        '<div class="email-recipient-option-name">' + this.escapeHtml(this.getRecipientDisplayLabel(instance, option)) + '</div>' +
+                        '<div class="email-recipient-option-meta">' + this.escapeHtml(this.getRecipientOptionMeta(instance, option)) + '</div>' +
+                    '</div>' +
+                    (kind === 'contact'
+                        ? '<div class="email-recipient-type-pill email-recipient-type-pill-contact">Player</div>'
+                        : '<div class="email-recipient-type-pill email-recipient-type-pill-' + this.escapeHtml(kind) + '">' + this.escapeHtml(kind === 'local_list' ? 'List' : 'Set') + '</div>') +
+                '</div>';
+            }.bind(this));
+            html += '</div>';
+        } else {
+            html += '<div class="email-recipient-empty">Type a SteamID, contact name, list name, or set name.</div>';
+        }
+
+        return html;
+    },
+
+    commitRecipientInput: function(windowId) {
+        var instance = this.getInstance(windowId);
+        var root = this.getRootElement(windowId);
+        if (!instance || !root) {
+            return;
+        }
+
+        var input = root.querySelector('.email-to-input');
+        if (!input) {
+            return;
+        }
+
+        var value = String(input.value || '').trim();
+        if (!value) {
+            return;
+        }
+
+        var options = this.getRecipientOptions(instance, value, this.getRecipientDropdownTab(instance));
+        var selected = null;
+
+        for (var i = 0; i < options.length; i++) {
+            var option = options[i];
+            if (String(this.getRecipientDisplayLabel(instance, option) || '').toLowerCase() === value.toLowerCase() ||
+                String(option.steamID64 || '').toLowerCase() === value.toLowerCase() ||
+                String(option.steamID || '').toLowerCase() === value.toLowerCase()) {
+                selected = option;
+                break;
+            }
+        }
+
+        if (!selected && options.length > 0) {
+            selected = options[0];
+        }
+
+        if (!selected && this.isLikelySteamId(value)) {
+            selected = this.createContactRecipient(instance, {
+                steamID: this.looksLikeSteamId64(value) ? '' : value,
+                steamID64: this.looksLikeSteamId64(value) ? value : '',
+                nickname: value
+            });
+        }
+
+        if (!selected) {
+            if (window.osErrorHandler) {
+                window.osErrorHandler.showNotification('Enter a valid SteamID or pick a contact, list, or set.', 'warning', 2200);
+            }
+            return;
+        }
+
+        instance.recipientQuery = '';
+        instance.recipientDropdownOpen = true;
+        this.addRecipient(windowId, selected, { refocusRecipient: true });
+    },
+
+    addRecipient: function(windowId, contact, options) {
+        var instance = this.getInstance(windowId);
+        if (!instance || !contact) {
+            return;
+        }
+
+        var recipient = this.cloneRecipient(contact);
+        var key = String(this.getRecipientKey(recipient) || '').toLowerCase();
+        if (!key) {
+            return;
+        }
+
+        var exists = instance.compose.recipients.some(function(existing) {
+            return String(this.getRecipientKey(existing) || '').toLowerCase() === key;
+        }.bind(this));
+
+        if (exists) {
+            return;
+        }
+
+        if (this.getRecipientKind(recipient) !== 'contact' &&
+            (!Array.isArray(recipient.members) || recipient.members.length <= 0)) {
+            if (window.osErrorHandler) {
+                window.osErrorHandler.showNotification('This recipient has no members to email.', 'warning', 2200);
+            }
+            return;
+        }
+
+        instance.compose.recipients.push(recipient);
+        this.onComposeChanged(windowId, options);
+    },
+
+    removeRecipient: function(windowId, key) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        instance.compose.recipients = instance.compose.recipients.filter(function(contact) {
+            return String(this.getRecipientKey(contact) || '') !== String(key || '');
+        }.bind(this));
+
+        this.onComposeChanged(windowId);
+    },
+
+    toggleFavorite: function(windowId, contact) {
+        var instance = this.getInstance(windowId);
+        if (!instance || !contact) {
+            return;
+        }
+
+        this.request(windowId, 'set_favorite', {
+            contact: contact,
+            favorite: !this.isFavorite(instance, contact)
+        }, function(payload) {
+            var current = this.getInstance(windowId);
+            if (!current) return;
+            current.favorites = Array.isArray(payload.favorites) ? payload.favorites : [];
+            this.refreshRecipientDropdown(windowId);
+            if (current.currentView === 'contacts') {
+                this.render(windowId);
+            }
+        }.bind(this));
+    },
+
+    getRecipientOptions: function(instance, query, tabOverride) {
+        var normalizedQuery = String(query || '').toLowerCase().trim();
+        var activeTab = tabOverride || this.getRecipientDropdownTab(instance);
+        var options = this.getContactOptions(instance).concat(this.getCollectionOptions(instance));
+
+        options = options.filter(function(option) {
+            var kind = this.getRecipientKind(option);
+            if (activeTab === 'favorites') {
+                return this.isFavorite(instance, option);
+            }
+            if (activeTab === 'players') {
+                return kind === 'contact';
+            }
+            if (activeTab === 'sets') {
+                return kind === 'local_list' || kind === 'server_set';
+            }
+            return true;
+        }.bind(this));
+
+        if (normalizedQuery) {
+            options = options.filter(function(option) {
+                if (this.getRecipientKind(option) === 'contact') {
+                    return String(this.getRecipientDisplayLabel(instance, option) || '').toLowerCase().indexOf(normalizedQuery) !== -1 ||
+                        String(option.steamID || '').toLowerCase().indexOf(normalizedQuery) !== -1 ||
+                        String(option.steamID64 || '').toLowerCase().indexOf(normalizedQuery) !== -1;
+                }
+
+                return String(option.name || '').toLowerCase().indexOf(normalizedQuery) !== -1;
+            }.bind(this));
+        }
+
+        options.sort(function(a, b) {
+            var favoriteA = this.isFavorite(instance, a) ? 0 : 1;
+            var favoriteB = this.isFavorite(instance, b) ? 0 : 1;
+            if (favoriteA !== favoriteB) {
+                return favoriteA - favoriteB;
+            }
+
+            var kindOrder = {
+                contact: 0,
+                local_list: 1,
+                server_set: 2
+            };
+            var kindA = kindOrder[this.getRecipientKind(a)] || 0;
+            var kindB = kindOrder[this.getRecipientKind(b)] || 0;
+            if (kindA !== kindB) {
+                return kindA - kindB;
+            }
+
+            return String(this.getRecipientDisplayLabel(instance, a) || '').localeCompare(String(this.getRecipientDisplayLabel(instance, b) || ''));
+        }.bind(this));
+
+        return options.slice(0, 30);
+    },
+
     openDraft: function(windowId, draftId) {
         var instance = this.getInstance(windowId);
         if (!instance) {
@@ -1043,6 +1643,131 @@ var emailApp = {
         }.bind(this));
     },
 
+    resolveRecipientContact: function(instance, steamID64) {
+        if (!steamID64) {
+            return null;
+        }
+
+        var resolved = null;
+        this.getContactOptions(instance).some(function(contact) {
+            if (String(contact.steamID64 || '') === String(steamID64 || '') ||
+                String(contact.steamID || '') === String(steamID64 || '')) {
+                resolved = this.createContactRecipient(instance, contact);
+                return true;
+            }
+            return false;
+        }.bind(this));
+
+        if (resolved) {
+            return resolved;
+        }
+
+        return this.createContactRecipient(instance, {
+            steamID: this.looksLikeSteamId64(steamID64) ? '' : String(steamID64 || ''),
+            steamID64: this.looksLikeSteamId64(steamID64) ? String(steamID64 || '') : '',
+            nickname: String(steamID64 || '')
+        });
+    },
+
+    getExpandedRecipientMembers: function(instance, recipient) {
+        var kind = this.getRecipientKind(recipient);
+        if (kind === 'contact') {
+            return [this.createContactRecipient(instance, recipient)];
+        }
+
+        return (recipient.members || []).map(function(steamID64) {
+            return this.resolveRecipientContact(instance, steamID64);
+        }.bind(this)).filter(function(contact) {
+            return !!contact;
+        });
+    },
+
+    expandComposeRecipients: function(instance) {
+        var expanded = [];
+        var seen = {};
+
+        (instance.compose.recipients || []).forEach(function(recipient) {
+            this.getExpandedRecipientMembers(instance, recipient).forEach(function(contact) {
+                var key = String(contact.steamID64 || contact.steamID || '').toLowerCase();
+                if (!key || seen[key]) {
+                    return;
+                }
+
+                seen[key] = true;
+                expanded.push({
+                    steamID: contact.steamID || '',
+                    steamID64: contact.steamID64 || '',
+                    nickname: this.getRecipientDisplayLabel(instance, contact)
+                });
+            }.bind(this));
+        }.bind(this));
+
+        return expanded;
+    },
+
+    sendCurrentEmail: function(windowId) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        if (!instance.compose.recipients.length) {
+            if (window.osErrorHandler) {
+                window.osErrorHandler.showNotification('Add at least one recipient.', 'warning', 2200);
+            }
+            return;
+        }
+
+        var expandedRecipients = this.expandComposeRecipients(instance);
+        if (!expandedRecipients.length) {
+            if (window.osErrorHandler) {
+                window.osErrorHandler.showNotification('No valid recipients could be resolved from the selected contacts, lists, or sets.', 'warning', 2600);
+            }
+            return;
+        }
+
+        this.resolveAttachmentContents(windowId, function(resolvedAttachments) {
+            var current = this.getInstance(windowId);
+            if (!current) return;
+
+            current.loading = true;
+            this.render(windowId);
+
+            this.request(windowId, 'send_email', {
+                recipients: expandedRecipients,
+                subject: current.compose.subject,
+                bodyMarkdown: current.compose.bodyMarkdown,
+                attachments: resolvedAttachments
+            }, function(payload) {
+                var latest = this.getInstance(windowId);
+                if (!latest) return;
+                latest.loading = false;
+
+                if (payload.success) {
+                    if (latest.compose.draftId) {
+                        this.request(windowId, 'delete_draft', { id: latest.compose.draftId }, function() {});
+                    }
+
+                    latest.compose = this.createEmptyComposeState();
+                    latest.recipientQuery = '';
+                    this.refreshDrafts(windowId);
+                    this.refreshContactDirectory(windowId, { render: false });
+
+                    if (window.osErrorHandler) {
+                        window.osErrorHandler.showNotification('Email sent.', 'success', 2000);
+                    }
+
+                    this.showFolder(windowId, 'sent');
+                } else {
+                    this.render(windowId);
+                    if (window.osErrorHandler) {
+                        window.osErrorHandler.showNotification(payload.message || 'Failed to send email.', 'error', 2600);
+                    }
+                }
+            }.bind(this));
+        }.bind(this));
+    },
+
     resolveAttachmentContents: function(windowId, callback) {
         var instance = this.getInstance(windowId);
         if (!instance) {
@@ -1085,7 +1810,15 @@ var emailApp = {
             }
 
             window.filesystem.readFile(attachment.filepath, function(content) {
-                attachment.content = content || '';
+                if (content === null || content === undefined) {
+                    if (window.osErrorHandler) {
+                        window.osErrorHandler.showNotification('Failed to read attachment: ' + (attachment.displayName || attachment.filepath), 'warning', 2400);
+                    }
+                    finalize('');
+                    return;
+                }
+
+                attachment.content = content;
                 finalize(attachment.content);
             });
         });
@@ -1280,6 +2013,422 @@ var emailApp = {
         }
     },
 
+    isOnlineContact: function(instance, contact) {
+        return (instance.onlinePlayers || []).some(function(playerInfo) {
+            return String(playerInfo.steamID64 || playerInfo.steamID || '') === String(contact && (contact.steamID64 || contact.steamID) || '');
+        });
+    },
+
+    getCollectionEditorByKind: function(instance, kind) {
+        return kind === 'server_set' ? instance.serverSetEditor : instance.localListEditor;
+    },
+
+    getCollectionsByKind: function(instance, kind) {
+        return kind === 'server_set' ? (instance.serverSets || []) : (instance.localLists || []);
+    },
+
+    renderContactBadges: function(instance, contact) {
+        var badges = [];
+        if (this.isFavorite(instance, contact)) {
+            badges.push('<span class="email-contact-badge is-favorite">Favorite</span>');
+        }
+        if (this.isOnlineContact(instance, contact)) {
+            badges.push('<span class="email-contact-badge is-online">Online</span>');
+        }
+        if (this.getLocalAlias(instance, contact)) {
+            badges.push('<span class="email-contact-badge is-alias">Nickname</span>');
+        }
+        return badges.join('');
+    },
+
+    getLocalContactsSubTab: function(instance) {
+        return instance && instance.localContactsSubTab === 'local_lists' ? 'local_lists' : 'favorites';
+    },
+
+    getFavoriteContacts: function(instance) {
+        return this.getContactOptions(instance).filter(function(contact) {
+            return this.isFavorite(instance, contact);
+        }.bind(this));
+    },
+
+    getNonFavoriteContacts: function(instance) {
+        return this.getContactOptions(instance).filter(function(contact) {
+            return !this.isFavorite(instance, contact);
+        }.bind(this));
+    },
+
+    isFavoriteInlineEditing: function(instance, contactKey) {
+        return !!instance && String(instance.favoriteInlineEditKey || '') === String(contactKey || '');
+    },
+
+    renderContactsStats: function(stats) {
+        var html = '<div class="email-contacts-stats">';
+        (stats || []).forEach(function(stat) {
+            html += '<div class="email-contacts-stat">' +
+                '<div class="email-contacts-stat-value">' + this.escapeHtml(String(stat.value || 0)) + '</div>' +
+                '<div class="email-contacts-stat-label">' + this.escapeHtml(stat.label || '') + '</div>' +
+            '</div>';
+        }.bind(this));
+        html += '</div>';
+        return html;
+    },
+
+    renderFavoriteBadges: function(instance, contact) {
+        var badges = [];
+        if (this.isOnlineContact(instance, contact)) {
+            badges.push('<span class="email-contact-badge is-online">Online</span>');
+        }
+        if (this.getLocalAlias(instance, contact)) {
+            badges.push('<span class="email-contact-badge is-alias">Nickname</span>');
+        }
+        return badges.join('');
+    },
+
+    renderContactDirectory: function(instance, contacts, options) {
+        options = options || {};
+        if (!contacts.length) {
+            return '<div class="email-empty-state compact"><div class="email-empty-title">' + this.escapeHtml(options.emptyTitle || 'No contacts yet') + '</div><div class="email-empty-text">' + this.escapeHtml(options.emptyText || 'Contacts will appear here as they become available.') + '</div></div>';
+        }
+
+        var html = '<div class="email-contact-directory' + (options.compact ? ' compact' : '') + '">';
+        contacts.forEach(function(contact) {
+            var contactKey = String(contact.steamID64 || contact.steamID || '');
+            var alias = this.getLocalAlias(instance, contact);
+            html += '<div class="email-contact-row">' +
+                '<div class="email-contact-row-main">' +
+                    '<div class="email-contact-row-name">' + this.escapeHtml(this.getRecipientDisplayLabel(instance, contact)) + '</div>' +
+                    '<div class="email-contact-row-meta">' + this.escapeHtml(contact.steamID || contact.steamID64 || '') + '</div>' +
+                    '<div class="email-contact-row-badges">' + this.renderContactBadges(instance, contact) + '</div>' +
+                '</div>' +
+                '<div class="email-contact-row-actions">' +
+                    '<input type="text" class="email-input email-contact-alias-input" data-contact-key="' + this.escapeHtml(contactKey) + '" value="' + this.escapeHtml((alias && alias.nickname) || '') + '" placeholder="Nickname" />' +
+                    '<button class="email-toolbar-btn email-save-alias-btn" data-contact-key="' + this.escapeHtml(contactKey) + '">Save Nickname</button>' +
+                    '<button class="email-toolbar-btn email-toggle-favorite-btn" data-contact-key="' + this.escapeHtml(contactKey) + '">' + this.escapeHtml(this.isFavorite(instance, contact) ? '★ Remove Favorite' : '☆ Favorite') + '</button>' +
+                    '<button class="email-toolbar-btn email-compose-contact-btn" data-contact-key="' + this.escapeHtml(contactKey) + '">Insert</button>' +
+                '</div>' +
+            '</div>';
+        }.bind(this));
+        html += '</div>';
+        return html;
+    },
+
+    renderCompactFavoriteDirectory: function(instance, contacts) {
+        if (!contacts.length) {
+            return '<div class="email-empty-state compact"><div class="email-empty-title">No favorites yet</div><div class="email-empty-text">Mark players as favorites or add one manually to keep them here.</div></div>';
+        }
+
+        var html = '<div class="email-favorite-directory">';
+        contacts.forEach(function(contact) {
+            var contactKey = String(contact.steamID64 || contact.steamID || '');
+            var alias = this.getLocalAlias(instance, contact);
+            var isEditing = this.isFavoriteInlineEditing(instance, contactKey);
+            var badges = this.renderFavoriteBadges(instance, contact);
+            html += '<div class="email-favorite-row">' +
+                '<div class="email-favorite-row-top">' +
+                    '<div class="email-favorite-row-main">' +
+                        '<div class="email-favorite-row-icon" aria-hidden="true">★</div>' +
+                        '<div class="email-favorite-row-copy">' +
+                            '<div class="email-favorite-row-name">' + this.escapeHtml(this.getRecipientDisplayLabel(instance, contact)) + '</div>' +
+                            '<div class="email-favorite-row-meta">' + this.escapeHtml(contact.steamID || contact.steamID64 || '') + '</div>' +
+                            (badges ? '<div class="email-contact-row-badges compact">' + badges + '</div>' : '') +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="email-favorite-row-actions">' +
+                        '<button class="email-toolbar-btn email-favorite-edit-btn" data-contact-key="' + this.escapeHtml(contactKey) + '">' + (isEditing ? 'Editing' : 'Edit') + '</button>' +
+                        '<button class="email-toolbar-btn email-compose-contact-btn" data-contact-key="' + this.escapeHtml(contactKey) + '">Insert</button>' +
+                        '<button class="email-toolbar-btn email-toggle-favorite-btn" data-contact-key="' + this.escapeHtml(contactKey) + '">★ Remove</button>' +
+                    '</div>' +
+                '</div>' +
+                (isEditing
+                    ? '<div class="email-favorite-inline-editor">' +
+                        '<input type="text" class="email-input email-favorite-edit-input" data-contact-key="' + this.escapeHtml(contactKey) + '" value="' + this.escapeHtml(instance.favoriteInlineEditValue || (alias && alias.nickname) || '') + '" placeholder="Nickname" />' +
+                        '<button class="email-toolbar-btn email-favorite-save-btn" data-contact-key="' + this.escapeHtml(contactKey) + '">Save</button>' +
+                        '<button class="email-toolbar-btn email-favorite-cancel-btn" data-contact-key="' + this.escapeHtml(contactKey) + '">Cancel</button>' +
+                    '</div>'
+                    : '') +
+            '</div>';
+        }.bind(this));
+        html += '</div>';
+        return html;
+    },
+
+    renderEditorMembers: function(instance, editor) {
+        var html = '';
+        (editor.members || []).forEach(function(steamID64) {
+            var contact = this.resolveRecipientContact(instance, steamID64);
+            html += '<div class="email-editor-member-chip">' +
+                '<span>' + this.escapeHtml(this.getRecipientDisplayLabel(instance, contact)) + '</span>' +
+                '<button class="email-editor-member-remove" data-editor-kind="' + this.escapeHtml(editor.kind) + '" data-member-id="' + this.escapeHtml(String(steamID64)) + '">x</button>' +
+            '</div>';
+        }.bind(this));
+
+        return html || '<div class="email-contacts-empty-inline">No members selected yet.</div>';
+    },
+
+    renderCollectionEditor: function(instance, kind) {
+        var editor = this.getCollectionEditorByKind(instance, kind);
+        var contacts = this.getContactOptions(instance);
+        var title = kind === 'server_set'
+            ? (editor.id ? 'Edit Contact Set' : 'Create Contact Set')
+            : (editor.id ? 'Edit Local List' : 'Create Local List');
+        var saveLabel = kind === 'server_set' ? 'Save Set' : 'Save List';
+
+        var html = '' +
+            '<div class="email-contacts-card">' +
+                '<div class="email-contacts-card-header">' +
+                    '<div class="email-contacts-card-title">' + this.escapeHtml(title) + '</div>' +
+                    '<div class="email-contacts-card-subtitle">' + this.escapeHtml((editor.members || []).length + ' member(s) selected') + '</div>' +
+                '</div>' +
+                '<label class="email-field">' +
+                    '<span>Name</span>' +
+                    '<input type="text" class="email-input email-collection-name-input" data-editor-kind="' + this.escapeHtml(kind) + '" value="' + this.escapeHtml(editor.name || '') + '" placeholder="' + this.escapeHtml(kind === 'server_set' ? 'Command Staff' : 'Squad Alpha') + '" />' +
+                '</label>' +
+                '<div class="email-field">' +
+                    '<span>Add Member By SteamID / SteamID64</span>' +
+                    '<div class="email-inline-form">' +
+                        '<input type="text" class="email-input email-collection-manual-input" data-editor-kind="' + this.escapeHtml(kind) + '" value="' + this.escapeHtml(editor.manualMemberInput || '') + '" placeholder="STEAM_0:1:1234 or 7656..." />' +
+                        '<button class="email-toolbar-btn email-collection-manual-add-btn" data-editor-kind="' + this.escapeHtml(kind) + '">Add</button>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="email-field">' +
+                    '<span>Selected Members</span>' +
+                    '<div class="email-editor-member-list">' + this.renderEditorMembers(instance, editor) + '</div>' +
+                '</div>' +
+                '<div class="email-field">' +
+                    '<span>Available Contacts</span>' +
+                    '<div class="email-collection-contact-picker">';
+
+        contacts.forEach(function(contact) {
+            var key = String(contact.steamID64 || contact.steamID || '');
+            var checked = (editor.members || []).indexOf(key) !== -1;
+            html += '<label class="email-collection-contact-option">' +
+                '<input type="checkbox" class="email-collection-member-toggle" data-editor-kind="' + this.escapeHtml(kind) + '" data-member-id="' + this.escapeHtml(key) + '" ' + (checked ? 'checked' : '') + ' />' +
+                '<span class="email-collection-contact-main">' +
+                    '<span class="email-collection-contact-name">' + this.escapeHtml(this.getRecipientDisplayLabel(instance, contact)) + '</span>' +
+                    '<span class="email-collection-contact-meta">' + this.escapeHtml(contact.steamID || contact.steamID64 || '') + '</span>' +
+                '</span>' +
+            '</label>';
+        }.bind(this));
+
+        html += '</div></div>' +
+                '<div class="email-contacts-card-actions">' +
+                    '<button class="email-toolbar-btn email-save-collection-btn" data-editor-kind="' + this.escapeHtml(kind) + '">' + this.escapeHtml(saveLabel) + '</button>' +
+                    '<button class="email-toolbar-btn email-clear-collection-btn" data-editor-kind="' + this.escapeHtml(kind) + '">Clear</button>' +
+                '</div>' +
+            '</div>';
+
+        return html;
+    },
+
+    renderCollectionCards: function(instance, kind) {
+        var collections = this.getCollectionsByKind(instance, kind);
+        if (!collections.length) {
+            return '<div class="email-empty-state compact"><div class="email-empty-title">No ' + this.escapeHtml(kind === 'server_set' ? 'contact sets' : 'local lists') + '</div><div class="email-empty-text">Create one to insert it into the recipient box as a single entry.</div></div>';
+        }
+
+        var html = '<div class="email-collection-grid">';
+        collections.forEach(function(collection) {
+            var recipient = this.createCollectionRecipient(kind, collection);
+            var memberSummary = (collection.members || []).slice(0, 4).map(function(steamID64) {
+                return this.getRecipientDisplayLabel(instance, this.resolveRecipientContact(instance, steamID64));
+            }.bind(this)).join(', ');
+
+            html += '<div class="email-contacts-card">' +
+                '<div class="email-contacts-card-header">' +
+                    '<div class="email-contacts-card-title">' + this.escapeHtml(collection.name || 'Collection') + '</div>' +
+                    '<div class="email-contacts-card-subtitle">' + this.escapeHtml((collection.members || []).length + ' member(s)') + '</div>' +
+                '</div>' +
+                '<div class="email-collection-card-preview">' + this.escapeHtml(memberSummary || 'No members yet.') + '</div>' +
+                '<div class="email-contacts-card-actions">' +
+                    '<button class="email-toolbar-btn email-compose-collection-btn" data-collection-kind="' + this.escapeHtml(kind) + '" data-collection-id="' + this.escapeHtml(collection.id) + '">Insert</button>' +
+                    '<button class="email-toolbar-btn email-edit-collection-btn" data-collection-kind="' + this.escapeHtml(kind) + '" data-collection-id="' + this.escapeHtml(collection.id) + '">Edit</button>' +
+                    '<button class="email-toolbar-btn email-delete-collection-btn" data-collection-kind="' + this.escapeHtml(kind) + '" data-collection-id="' + this.escapeHtml(collection.id) + '">Delete</button>' +
+                '</div>' +
+            '</div>';
+        }.bind(this));
+        html += '</div>';
+        return html;
+    },
+
+    renderLocalFavoritesView: function(instance) {
+        var favorites = this.getFavoriteContacts(instance);
+        var otherContacts = this.getNonFavoriteContacts(instance);
+
+        return '' +
+            '<div class="email-contacts-section-grid email-contacts-section-grid-wide">' +
+                '<div class="email-contacts-column email-contacts-column-wide">' +
+                    '<div class="email-contacts-card email-contacts-card-highlight">' +
+                        '<div class="email-contacts-card-header">' +
+                            '<div class="email-contacts-card-title">Favorites</div>' +
+                            '<div class="email-contacts-card-subtitle">Your pinned contacts stay at the top and are the quickest way to start a message.</div>' +
+                        '</div>' +
+                        this.renderContactsStats([
+                            { label: 'Favorites', value: favorites.length },
+                            { label: 'Known Contacts', value: (favorites.length + otherContacts.length) },
+                            { label: 'Online Now', value: (instance.onlinePlayers || []).length }
+                        ]) +
+                        this.renderCompactFavoriteDirectory(instance, favorites) +
+                    '</div>' +
+                '</div>' +
+                '<div class="email-contacts-column">' +
+                    '<div class="email-contacts-card">' +
+                        '<div class="email-contacts-card-header">' +
+                            '<div class="email-contacts-card-title">Add Favorite</div>' +
+                            '<div class="email-contacts-card-subtitle">Store a SteamID with an optional nickname for this computer.</div>' +
+                        '</div>' +
+                        '<div class="email-inline-form stacked">' +
+                            '<input type="text" class="email-input email-manual-favorite-id" value="' + this.escapeHtml(instance.localContactDraft.steamIdInput || '') + '" placeholder="STEAM_0:1:1234 or 7656..." />' +
+                            '<input type="text" class="email-input email-manual-favorite-nickname" value="' + this.escapeHtml(instance.localContactDraft.nickname || '') + '" placeholder="Optional nickname" />' +
+                            '<button class="email-toolbar-btn email-manual-favorite-add-btn">Add Favorite</button>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="email-contacts-card">' +
+                        '<div class="email-contacts-card-header">' +
+                            '<div class="email-contacts-card-title">All Players & Contacts</div>' +
+                            '<div class="email-contacts-card-subtitle">Everyone available to favorite, nickname, or insert into compose.</div>' +
+                        '</div>' +
+                        this.renderContactDirectory(instance, otherContacts, {
+                            compact: true,
+                            emptyTitle: 'No more contacts',
+                            emptyText: 'All known contacts are already favorited.'
+                        }) +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+    },
+
+    renderLocalListsView: function(instance) {
+        return '' +
+            '<div class="email-contacts-section-grid email-contacts-section-grid-wide">' +
+                '<div class="email-contacts-column email-contacts-column-wide">' +
+                    '<div class="email-contacts-card email-contacts-card-highlight">' +
+                        '<div class="email-contacts-card-header">' +
+                            '<div class="email-contacts-card-title">Local Lists</div>' +
+                            '<div class="email-contacts-card-subtitle">Your private contact shortcuts on this computer. Insert them as one recipient badge and expand them when sending.</div>' +
+                        '</div>' +
+                        this.renderContactsStats([
+                            { label: 'Local Lists', value: (instance.localLists || []).length },
+                            { label: 'Known Contacts', value: this.getContactOptions(instance).length },
+                            { label: 'Favorites', value: this.getFavoriteContacts(instance).length }
+                        ]) +
+                        this.renderCollectionCards(instance, 'local_list') +
+                    '</div>' +
+                '</div>' +
+                '<div class="email-contacts-column">' +
+                    this.renderCollectionEditor(instance, 'local_list') +
+                '</div>' +
+            '</div>';
+    },
+
+    renderAdminContactsView: function(instance) {
+        if (!instance.adminAccess) {
+            return '<div class="email-contacts-card email-contacts-card-highlight"><div class="email-empty-state"><div class="email-empty-title">Admin Access Required</div><div class="email-empty-text">You need the ' + this.escapeHtml('HALOARMORY.Email Contact Sets') + ' permission to manage server contact sets.</div></div></div>';
+        }
+
+        return '' +
+            '<div class="email-contacts-section-grid email-contacts-section-grid-wide">' +
+                '<div class="email-contacts-column email-contacts-column-wide">' +
+                    '<div class="email-contacts-card email-contacts-card-highlight">' +
+                        '<div class="email-contacts-card-header">' +
+                            '<div class="email-contacts-card-title">Server Contact Sets</div>' +
+                            '<div class="email-contacts-card-subtitle">Shared recipient shortcuts for the whole server. Everyone can use them in compose, admins manage the membership.</div>' +
+                        '</div>' +
+                        this.renderContactsStats([
+                            { label: 'Server Sets', value: (instance.serverSets || []).length },
+                            { label: 'Known Contacts', value: this.getContactOptions(instance).length },
+                            { label: 'Online Now', value: (instance.onlinePlayers || []).length }
+                        ]) +
+                        this.renderCollectionCards(instance, 'server_set') +
+                    '</div>' +
+                '</div>' +
+                '<div class="email-contacts-column">' +
+                    '<div class="email-contacts-card email-contacts-card-muted">' +
+                        '<div class="email-contacts-card-header">' +
+                            '<div class="email-contacts-card-title">How Server Sets Work</div>' +
+                            '<div class="email-contacts-card-subtitle">Keep shared recipient groups consistent for everyone using the terminal.</div>' +
+                        '</div>' +
+                        '<div class="email-contacts-help-copy">Use sets for departments, squads, or command chains. Each set stores SteamIDs only, then expands into the real recipients when someone sends an email.</div>' +
+                    '</div>' +
+                    this.renderCollectionEditor(instance, 'server_set') +
+                '</div>' +
+            '</div>';
+    },
+
+    renderContactsView: function(instance) {
+        var contacts = this.getContactOptions(instance);
+        var activeTab = instance.contactsTab === 'admin' ? 'admin' : 'local';
+        var localSubTab = this.getLocalContactsSubTab(instance);
+        var html = '' +
+            '<div class="email-panel email-contacts-panel">' +
+                '<div class="email-toolbar">' +
+                    '<div class="email-toolbar-title-wrap">' +
+                        '<div class="email-toolbar-title">Contacts</div>' +
+                        '<div class="email-toolbar-subtitle">' + this.escapeHtml(String(contacts.length)) + ' contact(s) available</div>' +
+                    '</div>' +
+                    '<div class="email-toolbar-actions">' +
+                        '<button class="email-toolbar-btn email-refresh-contacts-btn">Refresh</button>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="email-contacts-shell">' +
+                    '<div class="email-contacts-tabs">' +
+                        '<button class="email-contacts-tab ' + (activeTab === 'local' ? 'active' : '') + '" data-contacts-tab="local">Local</button>' +
+                        '<button class="email-contacts-tab ' + (activeTab === 'admin' ? 'active' : '') + '" data-contacts-tab="admin">Admin</button>' +
+                    '</div>' +
+                    (activeTab === 'local'
+                        ? '<div class="email-contacts-subtabs">' +
+                            '<button class="email-contacts-subtab ' + (localSubTab === 'favorites' ? 'active' : '') + '" data-local-contacts-tab="favorites">Favorites</button>' +
+                            '<button class="email-contacts-subtab ' + (localSubTab === 'local_lists' ? 'active' : '') + '" data-local-contacts-tab="local_lists">Local Lists</button>' +
+                        '</div>'
+                        : '') +
+                '</div>' +
+                '<div class="email-contacts-body">' +
+                    '<div class="email-contacts-page-intro">' + this.escapeHtml(activeTab === 'admin'
+                        ? 'Shared recipient shortcuts managed per server.'
+                        : (localSubTab === 'local_lists'
+                            ? 'Your private contact shortcuts and recipient groups for this computer.'
+                            : 'Your pinned contacts and local nicknames, with favorites front and center.')) + '</div>' +
+                    (activeTab === 'local'
+                        ? (localSubTab === 'local_lists'
+                            ? this.renderLocalListsView(instance)
+                            : this.renderLocalFavoritesView(instance))
+                        : this.renderAdminContactsView(instance)) +
+                '</div>' +
+            '</div>';
+        return html;
+    },
+
+    render: function(windowId) {
+        var instance = this.getInstance(windowId);
+        var viewRoot = this.getViewRoot(windowId);
+        if (!instance || !viewRoot) {
+            return;
+        }
+
+        this.updateSidebarState(windowId);
+        this.updateSidebarMeta(windowId);
+
+        if (instance.currentView === 'compose') {
+            viewRoot.innerHTML = this.renderComposeView(instance);
+            this.bindComposeEvents(windowId);
+            return;
+        }
+
+        if (instance.currentView === 'detail') {
+            viewRoot.innerHTML = this.renderDetailView(instance);
+            this.bindDetailEvents(windowId);
+            return;
+        }
+
+        if (instance.currentView === 'contacts') {
+            viewRoot.innerHTML = this.renderContactsView(instance);
+            this.bindContactsEvents(windowId);
+            return;
+        }
+
+        viewRoot.innerHTML = this.renderFolderView(instance);
+        this.bindFolderEvents(windowId);
+    },
+
     renderFolderView: function(instance) {
         var messages = this.getCurrentFolderMessages(instance);
         var selectedCount = Object.keys(instance.selectedIds || {}).length;
@@ -1468,6 +2617,100 @@ var emailApp = {
                         '</div>' +
                     '</div>' +
                 '</div></div>';
+        return html;
+    },
+
+    renderComposeView: function(instance) {
+        var options = instance.recipientDropdownOpen ? this.getRecipientOptions(instance, instance.recipientQuery) : [];
+        var html = '' +
+            '<div class="email-panel email-compose-panel">' +
+                '<div class="email-compose-header">' +
+                    '<button class="email-back-btn btn">Back</button>' +
+                    '<div class="email-compose-title-wrap">' +
+                        '<div class="email-compose-title">' + (instance.compose.draftId ? 'Edit Draft' : 'New Message') + '</div>' +
+                        '<div class="email-compose-subtitle">' + this.escapeHtml(this.getFolderTitle(instance.currentFolder)) + '</div>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="email-compose-body">' +
+                '<div class="email-compose-fields">' +
+                    '<div class="email-field">' +
+                        '<span>To</span>' +
+                        '<div class="email-recipient-input-box">' +
+                            '<div class="email-recipient-chips">';
+
+        instance.compose.recipients.forEach(function(recipient) {
+            var key = this.getRecipientKey(recipient);
+            var kind = this.getRecipientKind(recipient);
+            html += '<div class="email-recipient-chip email-recipient-chip-' + this.escapeHtml(kind) + '">' +
+                '<span class="email-recipient-chip-name">' + this.escapeHtml(this.getRecipientDisplayLabel(instance, recipient)) + '</span>' +
+                '<button class="email-recipient-chip-remove" data-recipient-key="' + this.escapeHtml(key) + '">x</button>' +
+            '</div>';
+        }.bind(this));
+
+        html += '</div>' +
+                            '<input type="text" class="email-input email-to-input" placeholder="SteamID, SteamID64, contact, list, or set" value="' + this.escapeHtml(instance.recipientQuery) + '" />' +
+                        '</div>' +
+                        '<div class="email-recipient-dropdown ' + (instance.recipientDropdownOpen ? 'is-open' : '') + '">' +
+                            this.renderRecipientDropdownContents(instance) +
+                        '</div></div>' +
+                    '<label class="email-field">' +
+                        '<span>Subject</span>' +
+                        '<input type="text" class="email-input email-subject-input" value="' + this.escapeHtml(instance.compose.subject) + '" placeholder="Subject" />' +
+                    '</label>' +
+                '</div>' +
+                '<div class="email-attachments-section">' +
+                    '<div class="email-section-header">' +
+                        '<span>Attachments</span>' +
+                        '<span class="email-section-meta">' + instance.compose.attachments.length + ' file(s)</span>' +
+                    '</div>' +
+                    '<div class="email-attachments-list">';
+
+        if (!instance.compose.attachments.length) {
+            html += '<div class="email-attachments-empty">Drop files anywhere on the Email window to attach them.</div>';
+        } else {
+            instance.compose.attachments.forEach(function(attachment, index) {
+                html += '<div class="email-attachment-item">' +
+                    '<div class="email-attachment-meta">' +
+                        '<div class="email-attachment-name">' + this.escapeHtml(attachment.displayName || attachment.filename || 'Attachment') + '</div>' +
+                        '<div class="email-attachment-path">' + this.escapeHtml(attachment.filepath || attachment.sourcePath || '') + '</div>' +
+                    '</div>' +
+                    '<button class="email-toolbar-btn email-attachment-remove-btn" data-attachment-index="' + index + '">Remove</button>' +
+                '</div>';
+            }.bind(this));
+        }
+
+        html += '</div></div>' +
+                '<div class="email-editor-shell">' +
+                    '<div class="email-editor-toolbar">' +
+                        '<button class="email-format-btn" data-format="bold">B</button>' +
+                        '<button class="email-format-btn" data-format="italic">I</button>' +
+                        '<button class="email-format-btn" data-format="h1">H1</button>' +
+                        '<button class="email-format-btn" data-format="h2">H2</button>' +
+                        '<button class="email-format-btn" data-format="h3">H3</button>' +
+                        '<button class="email-format-btn" data-format="bullet">List</button>' +
+                        '<button class="email-format-btn" data-format="numbered">1.</button>' +
+                        '<button class="email-format-btn" data-format="code">Code</button>' +
+                    '</div>';
+
+        if (instance.compose.previewMode) {
+            html += '<div class="email-body-preview">' + this.renderMarkdown(instance.compose.bodyMarkdown) + '</div>';
+        } else {
+            html += '<textarea class="email-body-input" placeholder="Write your message here... Markdown is supported.">' + this.escapeHtml(instance.compose.bodyMarkdown) + '</textarea>';
+        }
+
+        html += '</div></div>' +
+                '<div class="email-compose-footer">' +
+                    '<div class="email-compose-footer-actions">' +
+                        '<div class="email-compose-footer-left">' +
+                            '<button class="email-toolbar-btn email-preview-toggle-btn">' + (instance.compose.previewMode ? 'Edit' : 'Preview') + '</button>' +
+                        '</div>' +
+                        '<div class="email-compose-footer-right">' +
+                            '<button class="email-toolbar-btn email-save-draft-btn">Save Draft</button>' +
+                            '<button class="email-toolbar-btn email-send-btn">Send</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div></div>';
+
         return html;
     },
 
@@ -1750,6 +2993,716 @@ var emailApp = {
         }.bind(this));
     },
 
+    findContactOptionByKey: function(instance, key) {
+        var matched = null;
+        this.getContactOptions(instance).some(function(contact) {
+            if (String(contact.steamID64 || contact.steamID || '') === String(key || '')) {
+                matched = contact;
+                return true;
+            }
+            return false;
+        });
+        return matched;
+    },
+
+    findCollectionById: function(instance, kind, collectionId) {
+        var matched = null;
+        this.getCollectionsByKind(instance, kind).some(function(collection) {
+            if (String(collection.id || '') === String(collectionId || '')) {
+                matched = collection;
+                return true;
+            }
+            return false;
+        });
+        return matched;
+    },
+
+    openComposeWithRecipient: function(windowId, recipient) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        if (instance.currentView !== 'compose') {
+            this.openCompose(windowId);
+            instance = this.getInstance(windowId);
+        }
+
+        this.addRecipient(windowId, recipient, { refocusRecipient: true });
+    },
+
+    setContactsTab: function(windowId, tab) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        instance.contactsTab = tab === 'admin' ? 'admin' : 'local';
+        this.render(windowId);
+    },
+
+    setLocalContactsSubTab: function(windowId, tab) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        instance.localContactsSubTab = tab === 'local_lists' ? 'local_lists' : 'favorites';
+        this.render(windowId);
+    },
+
+    startFavoriteInlineEdit: function(windowId, contactKey) {
+        var instance = this.getInstance(windowId);
+        var contact = instance && this.findContactOptionByKey(instance, contactKey);
+        if (!instance || !contact) {
+            return;
+        }
+
+        var alias = this.getLocalAlias(instance, contact);
+        instance.favoriteInlineEditKey = String(contactKey || '');
+        instance.favoriteInlineEditValue = String((alias && alias.nickname) || contact.nickname || '');
+        this.render(windowId);
+    },
+
+    cancelFavoriteInlineEdit: function(windowId) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        instance.favoriteInlineEditKey = '';
+        instance.favoriteInlineEditValue = '';
+        this.render(windowId);
+    },
+
+    updateFavoriteInlineEditValue: function(windowId, value) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        instance.favoriteInlineEditValue = value;
+    },
+
+    saveFavoriteInlineEdit: function(windowId, contactKey) {
+        var instance = this.getInstance(windowId);
+        var contact = instance && this.findContactOptionByKey(instance, contactKey);
+        if (!instance || !contact) {
+            return;
+        }
+
+        var nickname = String(instance.favoriteInlineEditValue || '').trim();
+        this.saveContactAlias(windowId, contact, nickname, function() {
+            var current = this.getInstance(windowId);
+            if (!current) {
+                return;
+            }
+
+            current.favoriteInlineEditKey = '';
+            current.favoriteInlineEditValue = '';
+            this.render(windowId);
+        }.bind(this));
+    },
+
+    updateCollectionEditorField: function(windowId, kind, field, value) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        var editor = this.getCollectionEditorByKind(instance, kind);
+        if (!editor) {
+            return;
+        }
+
+        editor[field] = value;
+    },
+
+    toggleCollectionEditorMember: function(windowId, kind, steamID64, checked) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        var editor = this.getCollectionEditorByKind(instance, kind);
+        if (!editor) {
+            return;
+        }
+
+        var normalized = String(steamID64 || '');
+        if (!normalized) {
+            return;
+        }
+
+        var nextMembers = (editor.members || []).filter(function(memberId) {
+            return String(memberId || '') !== normalized;
+        });
+
+        if (checked) {
+            nextMembers.push(normalized);
+        }
+
+        editor.members = nextMembers;
+        this.render(windowId);
+    },
+
+    removeEditorMember: function(windowId, kind, steamID64) {
+        this.toggleCollectionEditorMember(windowId, kind, steamID64, false);
+    },
+
+    addManualMemberToEditor: function(windowId, kind) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        var editor = this.getCollectionEditorByKind(instance, kind);
+        var value = String(editor.manualMemberInput || '').trim();
+        if (!value) {
+            return;
+        }
+
+        if (!this.isLikelySteamId(value) && window.osErrorHandler) {
+            window.osErrorHandler.showNotification('Enter a valid SteamID or SteamID64.', 'warning', 2200);
+            return;
+        }
+
+        if ((editor.members || []).indexOf(value) === -1) {
+            editor.members.push(value);
+        }
+
+        editor.manualMemberInput = '';
+        this.render(windowId);
+    },
+
+    clearCollectionEditor: function(windowId, kind) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        this.resetCollectionEditorState(this.getCollectionEditorByKind(instance, kind), kind);
+        this.render(windowId);
+    },
+
+    editCollection: function(windowId, kind, collectionId) {
+        var instance = this.getInstance(windowId);
+        var collection = instance && this.findCollectionById(instance, kind, collectionId);
+        if (!instance || !collection) {
+            return;
+        }
+
+        var editor = this.getCollectionEditorByKind(instance, kind);
+        editor.id = collection.id || null;
+        editor.name = collection.name || '';
+        editor.members = Array.isArray(collection.members) ? collection.members.slice() : [];
+        editor.manualMemberInput = '';
+        if (kind === 'server_set') {
+            instance.contactsTab = 'admin';
+        } else {
+            instance.contactsTab = 'local';
+            instance.localContactsSubTab = 'local_lists';
+        }
+        this.render(windowId);
+    },
+
+    saveCollection: function(windowId, kind) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        var editor = this.getCollectionEditorByKind(instance, kind);
+        var action = kind === 'server_set' ? 'save_contact_set' : 'save_local_list';
+
+        this.request(windowId, action, {
+            id: editor.id,
+            name: editor.name,
+            members: editor.members
+        }, function(payload) {
+            var current = this.getInstance(windowId);
+            if (!current) return;
+
+            if (!payload.success) {
+                if (window.osErrorHandler) {
+                    window.osErrorHandler.showNotification(payload.message || 'Failed to save collection.', 'error', 2600);
+                }
+                return;
+            }
+
+            if (kind === 'server_set') {
+                current.serverSets = Array.isArray(payload.serverSets) ? payload.serverSets : current.serverSets;
+            } else {
+                current.localLists = Array.isArray(payload.localLists) ? payload.localLists : current.localLists;
+            }
+
+            this.resetCollectionEditorState(this.getCollectionEditorByKind(current, kind), kind);
+            this.render(windowId);
+
+            if (window.osErrorHandler) {
+                window.osErrorHandler.showNotification(kind === 'server_set' ? 'Contact set saved.' : 'Local list saved.', 'success', 1800);
+            }
+        }.bind(this));
+    },
+
+    deleteCollection: function(windowId, kind, collectionId) {
+        var action = kind === 'server_set' ? 'delete_contact_set' : 'delete_local_list';
+        this.request(windowId, action, { id: collectionId }, function(payload) {
+            var current = this.getInstance(windowId);
+            if (!current) return;
+
+            if (!payload.success) {
+                if (window.osErrorHandler) {
+                    window.osErrorHandler.showNotification(payload.message || 'Failed to delete collection.', 'error', 2600);
+                }
+                return;
+            }
+
+            if (kind === 'server_set') {
+                current.serverSets = Array.isArray(payload.serverSets) ? payload.serverSets : [];
+            } else {
+                current.localLists = Array.isArray(payload.localLists) ? payload.localLists : [];
+            }
+
+            this.resetCollectionEditorState(this.getCollectionEditorByKind(current, kind), kind);
+            this.render(windowId);
+        }.bind(this));
+    },
+
+    saveContactAlias: function(windowId, contact, nickname, callback) {
+        this.request(windowId, 'save_contact_alias', {
+            contact: {
+                steamID: contact.steamID || '',
+                steamID64: contact.steamID64 || '',
+                nickname: nickname || ''
+            }
+        }, function(payload) {
+            var instance = this.getInstance(windowId);
+            if (!instance) return;
+            instance.localAliases = Array.isArray(payload.aliases) ? payload.aliases : [];
+            this.render(windowId);
+            if (typeof callback === 'function') {
+                callback(payload);
+            }
+        }.bind(this));
+    },
+
+    addManualFavorite: function(windowId) {
+        var instance = this.getInstance(windowId);
+        if (!instance) {
+            return;
+        }
+
+        var rawId = String(instance.localContactDraft.steamIdInput || '').trim();
+        var nickname = String(instance.localContactDraft.nickname || '').trim();
+        if (!rawId) {
+            return;
+        }
+
+        var contact = {
+            steamID: this.looksLikeSteamId64(rawId) ? '' : rawId,
+            steamID64: this.looksLikeSteamId64(rawId) ? rawId : '',
+            nickname: nickname || rawId
+        };
+
+        this.request(windowId, 'set_favorite', {
+            contact: contact,
+            favorite: true
+        }, function(payload) {
+            var current = this.getInstance(windowId);
+            if (!current) return;
+            current.favorites = Array.isArray(payload.favorites) ? payload.favorites : [];
+
+            var finish = function() {
+                var refreshed = this.getInstance(windowId);
+                if (!refreshed) return;
+                refreshed.localContactDraft.steamIdInput = '';
+                refreshed.localContactDraft.nickname = '';
+                this.render(windowId);
+                if (window.osErrorHandler) {
+                    window.osErrorHandler.showNotification('Favorite saved.', 'success', 1800);
+                }
+            }.bind(this);
+
+            if (nickname) {
+                this.request(windowId, 'save_contact_alias', { contact: contact }, function(aliasPayload) {
+                    var refreshed = this.getInstance(windowId);
+                    if (!refreshed) return;
+                    refreshed.localAliases = Array.isArray(aliasPayload.aliases) ? aliasPayload.aliases : refreshed.localAliases;
+                    finish();
+                }.bind(this));
+                return;
+            }
+
+            finish();
+        }.bind(this));
+    },
+
+    bindComposeEvents: function(windowId) {
+        var root = this.getRootElement(windowId);
+        var instance = this.getInstance(windowId);
+        if (!root || !instance) {
+            return;
+        }
+
+        var backBtn = root.querySelector('.email-back-btn');
+        if (backBtn) {
+            backBtn.addEventListener('click', function() {
+                this.saveDraftIfNeeded(windowId);
+                this.showFolder(windowId, instance.currentFolder || 'inbox');
+            }.bind(this));
+        }
+
+        var saveDraftBtn = root.querySelector('.email-save-draft-btn');
+        if (saveDraftBtn) {
+            saveDraftBtn.addEventListener('click', function() {
+                this.saveDraftIfNeeded(windowId);
+                this.refreshDrafts(windowId);
+                if (window.osErrorHandler) {
+                    window.osErrorHandler.showNotification('Draft saved.', 'success', 1600);
+                }
+            }.bind(this));
+        }
+
+        var previewBtn = root.querySelector('.email-preview-toggle-btn');
+        if (previewBtn) {
+            previewBtn.addEventListener('click', function() {
+                this.toggleComposePreview(windowId);
+            }.bind(this));
+        }
+
+        var sendBtn = root.querySelector('.email-send-btn');
+        if (sendBtn) {
+            sendBtn.addEventListener('click', function() {
+                this.commitRecipientInput(windowId);
+                this.sendCurrentEmail(windowId);
+            }.bind(this));
+        }
+
+        var toInput = root.querySelector('.email-to-input');
+        if (toInput) {
+            toInput.addEventListener('input', function() {
+                instance.recipientQuery = toInput.value;
+                if (!instance.recipientDropdownOpen) {
+                    instance.recipientDropdownOpen = true;
+                }
+                this.refreshRecipientDropdown(windowId);
+            }.bind(this));
+
+            toInput.addEventListener('focus', function() {
+                this.setRecipientDropdownOpen(windowId, true);
+            }.bind(this));
+
+            toInput.addEventListener('blur', function() {
+                this.scheduleRecipientDropdownClose(windowId);
+            }.bind(this));
+
+            toInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === 'Tab' || e.key === ',') {
+                    e.preventDefault();
+                    this.commitRecipientInput(windowId);
+                    return;
+                }
+
+                if (e.key === 'Escape') {
+                    this.setRecipientDropdownOpen(windowId, false);
+                }
+            }.bind(this));
+        }
+
+        var subjectInput = root.querySelector('.email-subject-input');
+        if (subjectInput) {
+            subjectInput.addEventListener('input', function() {
+                instance.compose.subject = subjectInput.value;
+                this.onComposeChanged(windowId, { skipRender: true });
+            }.bind(this));
+        }
+
+        var bodyInput = root.querySelector('.email-body-input');
+        if (bodyInput) {
+            bodyInput.addEventListener('input', function() {
+                instance.compose.bodyMarkdown = bodyInput.value;
+                this.onComposeChanged(windowId, { skipRender: true });
+            }.bind(this));
+        }
+
+        root.querySelectorAll('.email-format-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.formatComposeText(windowId, button.getAttribute('data-format'));
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-recipient-chip-remove').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.removeRecipient(windowId, button.getAttribute('data-recipient-key'));
+            }.bind(this));
+        }.bind(this));
+
+        var recipientBox = root.querySelector('.email-recipient-input-box');
+        if (recipientBox) {
+            recipientBox.addEventListener('click', function(e) {
+                if (e.target.closest('.email-recipient-chip-remove')) {
+                    return;
+                }
+
+                this.focusRecipientInput(windowId);
+            }.bind(this));
+        }
+
+        var recipientDropdown = root.querySelector('.email-recipient-dropdown');
+        if (recipientDropdown) {
+            recipientDropdown.addEventListener('mousedown', function(e) {
+                if (e.target.closest('.email-recipient-option') || e.target.closest('.email-favorite-toggle') || e.target.closest('.email-recipient-dropdown-tab')) {
+                    e.preventDefault();
+                }
+            });
+
+            recipientDropdown.addEventListener('click', function(e) {
+                var tabButton = e.target.closest('.email-recipient-dropdown-tab');
+                if (tabButton) {
+                    e.stopPropagation();
+                    this.setRecipientDropdownTab(windowId, tabButton.getAttribute('data-recipient-tab'));
+                    return;
+                }
+
+                var favoriteButton = e.target.closest('.email-favorite-toggle');
+                if (favoriteButton) {
+                    e.stopPropagation();
+
+                    var favoriteKey = favoriteButton.getAttribute('data-favorite-key');
+                    var favoriteContact = this.getRecipientOptions(instance, instance.recipientQuery, this.getRecipientDropdownTab(instance)).find(function(option) {
+                        return String(this.getRecipientKey(option) || '') === String(favoriteKey || '');
+                    }.bind(this));
+
+                    if (favoriteContact) {
+                        this.toggleFavorite(windowId, favoriteContact);
+                    }
+                    return;
+                }
+
+                var optionNode = e.target.closest('.email-recipient-option');
+                if (!optionNode) {
+                    return;
+                }
+
+                var key = optionNode.getAttribute('data-recipient-key');
+                var contact = this.getRecipientOptions(instance, instance.recipientQuery, this.getRecipientDropdownTab(instance)).find(function(option) {
+                    return String(this.getRecipientKey(option) || '') === String(key || '');
+                }.bind(this));
+
+                if (contact) {
+                    instance.recipientQuery = '';
+                    instance.recipientDropdownOpen = true;
+                    this.addRecipient(windowId, contact, { refocusRecipient: true });
+                }
+            }.bind(this));
+        }
+
+        root.querySelectorAll('.email-attachment-remove-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.removeAttachment(windowId, parseInt(button.getAttribute('data-attachment-index'), 10) || 0);
+            }.bind(this));
+        }.bind(this));
+    },
+
+    bindContactsEvents: function(windowId) {
+        var root = this.getRootElement(windowId);
+        var instance = this.getInstance(windowId);
+        if (!root || !instance) {
+            return;
+        }
+
+        var refreshBtn = root.querySelector('.email-refresh-contacts-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', function() {
+                this.refreshLocalContactData(windowId, { render: true });
+                this.refreshContactDirectory(windowId, { render: true });
+            }.bind(this));
+        }
+
+        root.querySelectorAll('.email-contacts-tab').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.setContactsTab(windowId, button.getAttribute('data-contacts-tab'));
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-contacts-subtab').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.setLocalContactsSubTab(windowId, button.getAttribute('data-local-contacts-tab'));
+            }.bind(this));
+        }.bind(this));
+
+        var manualIdInput = root.querySelector('.email-manual-favorite-id');
+        if (manualIdInput) {
+            manualIdInput.addEventListener('input', function() {
+                instance.localContactDraft.steamIdInput = manualIdInput.value;
+            });
+        }
+
+        var manualNicknameInput = root.querySelector('.email-manual-favorite-nickname');
+        if (manualNicknameInput) {
+            manualNicknameInput.addEventListener('input', function() {
+                instance.localContactDraft.nickname = manualNicknameInput.value;
+            });
+        }
+
+        var addManualFavoriteBtn = root.querySelector('.email-manual-favorite-add-btn');
+        if (addManualFavoriteBtn) {
+            addManualFavoriteBtn.addEventListener('click', function() {
+                this.addManualFavorite(windowId);
+            }.bind(this));
+        }
+
+        root.querySelectorAll('.email-contact-alias-input').forEach(function(input) {
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    var contact = this.findContactOptionByKey(instance, input.getAttribute('data-contact-key'));
+                    if (contact) {
+                        this.saveContactAlias(windowId, contact, input.value);
+                    }
+                }
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-save-alias-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                var key = button.getAttribute('data-contact-key');
+                var contact = this.findContactOptionByKey(instance, key);
+                var input = null;
+                root.querySelectorAll('.email-contact-alias-input').forEach(function(field) {
+                    if (!input && String(field.getAttribute('data-contact-key') || '') === String(key || '')) {
+                        input = field;
+                    }
+                });
+                if (contact && input) {
+                    this.saveContactAlias(windowId, contact, input.value);
+                }
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-favorite-edit-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.startFavoriteInlineEdit(windowId, button.getAttribute('data-contact-key'));
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-favorite-edit-input').forEach(function(input) {
+            input.addEventListener('input', function() {
+                this.updateFavoriteInlineEditValue(windowId, input.value);
+            }.bind(this));
+
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.saveFavoriteInlineEdit(windowId, input.getAttribute('data-contact-key'));
+                    return;
+                }
+
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    this.cancelFavoriteInlineEdit(windowId);
+                }
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-favorite-save-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.saveFavoriteInlineEdit(windowId, button.getAttribute('data-contact-key'));
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-favorite-cancel-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.cancelFavoriteInlineEdit(windowId);
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-toggle-favorite-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                var key = button.getAttribute('data-contact-key');
+                var contact = this.findContactOptionByKey(instance, key);
+                if (contact) {
+                    this.toggleFavorite(windowId, contact);
+                }
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-compose-contact-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                var key = button.getAttribute('data-contact-key');
+                var contact = this.findContactOptionByKey(instance, key);
+                if (contact) {
+                    this.openComposeWithRecipient(windowId, contact);
+                }
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-collection-name-input').forEach(function(input) {
+            input.addEventListener('input', function() {
+                this.updateCollectionEditorField(windowId, input.getAttribute('data-editor-kind'), 'name', input.value);
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-collection-manual-input').forEach(function(input) {
+            input.addEventListener('input', function() {
+                this.updateCollectionEditorField(windowId, input.getAttribute('data-editor-kind'), 'manualMemberInput', input.value);
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-collection-manual-add-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.addManualMemberToEditor(windowId, button.getAttribute('data-editor-kind'));
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-collection-member-toggle').forEach(function(input) {
+            input.addEventListener('change', function() {
+                this.toggleCollectionEditorMember(windowId, input.getAttribute('data-editor-kind'), input.getAttribute('data-member-id'), input.checked);
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-editor-member-remove').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.removeEditorMember(windowId, button.getAttribute('data-editor-kind'), button.getAttribute('data-member-id'));
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-save-collection-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.saveCollection(windowId, button.getAttribute('data-editor-kind'));
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-clear-collection-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.clearCollectionEditor(windowId, button.getAttribute('data-editor-kind'));
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-compose-collection-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                var kind = button.getAttribute('data-collection-kind');
+                var collection = this.findCollectionById(instance, kind, button.getAttribute('data-collection-id'));
+                if (collection) {
+                    this.openComposeWithRecipient(windowId, this.createCollectionRecipient(kind, collection));
+                }
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-edit-collection-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.editCollection(windowId, button.getAttribute('data-collection-kind'), button.getAttribute('data-collection-id'));
+            }.bind(this));
+        }.bind(this));
+
+        root.querySelectorAll('.email-delete-collection-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                this.deleteCollection(windowId, button.getAttribute('data-collection-kind'), button.getAttribute('data-collection-id'));
+            }.bind(this));
+        }.bind(this));
+    },
+
     bindDetailEvents: function(windowId) {
         var root = this.getRootElement(windowId);
         var instance = this.getInstance(windowId);
@@ -1861,26 +3814,40 @@ var emailApp = {
             return;
         }
 
+        if (!window.pendingFileOpen || typeof window.pendingFileOpen !== 'object') {
+            window.pendingFileOpen = {};
+        }
+
+        var pendingFileId = 'pending-file-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+
         if (this.isImageAttachment(attachment)) {
-            window.pendingFileOpen = {
+            window.pendingFileOpen[pendingFileId] = {
                 path: null,
                 content: attachment.content || '',
                 displayName: this.getAttachmentDisplayName(attachment),
                 editMode: true
             };
 
-            window.osShell.openProgram('paint');
+            var paintWindowId = window.osShell.openProgram('paint');
+            var paintWindow = paintWindowId ? document.getElementById(paintWindowId) : null;
+            if (paintWindow) {
+                paintWindow.setAttribute('data-pending-file', pendingFileId);
+            }
             return;
         }
 
-        window.pendingFileOpen = {
+        window.pendingFileOpen[pendingFileId] = {
             path: null,
             content: attachment.content || '',
             displayName: this.stripExtension(this.getAttachmentDisplayName(attachment)),
             editMode: true
         };
 
-        window.osShell.openProgram('notes');
+        var notesWindowId = window.osShell.openProgram('notes');
+        var notesWindow = notesWindowId ? document.getElementById(notesWindowId) : null;
+        if (notesWindow) {
+            notesWindow.setAttribute('data-pending-file', pendingFileId);
+        }
     },
 
     saveAttachmentAs: function(attachment) {
@@ -1966,7 +3933,7 @@ var emailApp = {
         return div.innerHTML;
     }
 };
-]]
+]=]
 end
 
 function EMAIL.GetCSS()
@@ -2444,6 +4411,18 @@ function EMAIL.GetCSS()
     font-size: 12px;
 }
 
+.email-recipient-chip-local_list {
+    background: rgba(72, 148, 92, 0.2);
+    border-color: rgba(95, 191, 121, 0.42);
+    color: #dcffe4;
+}
+
+.email-recipient-chip-server_set {
+    background: rgba(165, 116, 49, 0.2);
+    border-color: rgba(218, 160, 74, 0.42);
+    color: #fff1d3;
+}
+
 .email-recipient-chip-remove {
     border: none;
     background: transparent;
@@ -2481,6 +4460,35 @@ function EMAIL.GetCSS()
     display: block;
 }
 
+.email-recipient-dropdown-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.email-recipient-dropdown-tab {
+    padding: 6px 10px;
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: var(--radius-ui-small, 4px);
+    background: var(--color-button-bg, rgba(255, 255, 255, 0.06));
+    color: var(--color-text-primary, #fff);
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.email-recipient-dropdown-tab.active {
+    background: var(--color-button-active-bg, rgba(255, 255, 255, 0.12));
+    border-color: var(--color-button-active-border, var(--color-window-border, #666));
+}
+
+.email-recipient-dropdown-list {
+    display: flex;
+    flex-direction: column;
+}
+
 .email-recipient-option {
     display: flex;
     align-items: center;
@@ -2499,7 +4507,7 @@ function EMAIL.GetCSS()
 }
 
 .email-favorite-toggle {
-    width: 28px;
+    width: 30px;
     height: 28px;
     border: 1px solid var(--color-window-border, #444);
     border-radius: var(--radius-ui-small, 4px);
@@ -2507,6 +4515,47 @@ function EMAIL.GetCSS()
     color: #f7cb58;
     cursor: pointer;
     flex-shrink: 0;
+    padding: 0;
+    font-size: 15px;
+    line-height: 1;
+}
+
+.email-favorite-toggle.is-active {
+    background: rgba(232, 185, 77, 0.16);
+    border-color: rgba(232, 185, 77, 0.35);
+}
+
+.email-recipient-type-pill {
+    min-width: 48px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: var(--radius-ui-small, 4px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+}
+
+.email-recipient-type-pill-local_list {
+    background: rgba(72, 148, 92, 0.18);
+    border: 1px solid rgba(95, 191, 121, 0.45);
+    color: #d9ffe2;
+}
+
+.email-recipient-type-pill-server_set {
+    background: rgba(165, 116, 49, 0.18);
+    border: 1px solid rgba(218, 160, 74, 0.45);
+    color: #fff0cf;
+}
+
+.email-recipient-type-pill-contact {
+    background: rgba(96, 150, 224, 0.18);
+    border: 1px solid rgba(96, 150, 224, 0.4);
+    color: #d7e8ff;
 }
 
 .email-recipient-option-name {
@@ -2518,6 +4567,428 @@ function EMAIL.GetCSS()
 .email-recipient-empty {
     color: var(--color-text-secondary, #9a9a9a);
     font-size: 12px;
+}
+
+.email-contacts-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.email-contacts-shell {
+    padding: 12px 16px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+}
+
+.email-contacts-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.email-contacts-tab {
+    padding: 8px 14px;
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: var(--radius-ui-small, 4px);
+    background: var(--color-button-bg, rgba(255, 255, 255, 0.06));
+    color: var(--color-text-primary, #fff);
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.email-contacts-tab.active {
+    background: var(--color-button-active-bg, rgba(255, 255, 255, 0.12));
+    border-color: var(--color-button-active-border, var(--color-window-border, #666));
+    color: var(--color-text-primary, #fff);
+}
+
+.email-contacts-subtabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.email-contacts-subtab {
+    padding: 7px 12px;
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: var(--radius-ui-small, 4px);
+    background: var(--color-button-bg, rgba(255, 255, 255, 0.06));
+    color: var(--color-text-primary, #fff);
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.email-contacts-subtab.active {
+    background: var(--color-button-active-bg, rgba(255, 255, 255, 0.12));
+    border-color: var(--color-button-active-border, var(--color-window-border, #666));
+    color: var(--color-text-primary, #fff);
+}
+
+.email-contacts-body {
+    padding: 16px;
+    overflow: auto;
+}
+
+.email-contacts-page-intro {
+    color: var(--color-text-secondary, #b4bcc8);
+    font-size: 12px;
+    margin-bottom: 14px;
+}
+
+.email-contacts-section-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+.email-contacts-section-grid-wide {
+    grid-template-columns: 1fr;
+}
+
+.email-contacts-column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.email-contacts-column-wide {
+    min-width: 0;
+}
+
+.email-contacts-card {
+    border: 1px solid var(--color-window-border, #444);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 14px;
+}
+
+.email-contacts-card-highlight {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.email-contacts-card-muted {
+    background: rgba(0, 0, 0, 0.14);
+}
+
+.email-contacts-card-header {
+    margin-bottom: 12px;
+}
+
+.email-contacts-card-title {
+    color: var(--color-text-primary, #fff);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.email-contacts-card-subtitle {
+    color: var(--color-text-secondary, #9a9a9a);
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+.email-inline-form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.email-inline-form.stacked {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.email-contacts-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.email-contacts-stat {
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.14);
+}
+
+.email-contacts-stat-value {
+    color: var(--color-text-primary, #fff);
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.email-contacts-stat-label {
+    color: var(--color-text-secondary, #aab3c0);
+    font-size: 11px;
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.email-contact-directory {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: none;
+    overflow: visible;
+}
+
+.email-contact-directory.compact {
+    max-height: none;
+}
+
+.email-favorite-directory {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.email-favorite-row {
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.14);
+}
+
+.email-favorite-row-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.email-favorite-row-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+}
+
+.email-favorite-row-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-ui-small, 4px);
+    background: rgba(232, 185, 77, 0.16);
+    border: 1px solid rgba(232, 185, 77, 0.28);
+    color: #ffe7a9;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.email-favorite-row-copy {
+    min-width: 0;
+}
+
+.email-favorite-row-name {
+    color: var(--color-text-primary, #fff);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.email-favorite-row-meta {
+    color: var(--color-text-secondary, #9a9a9a);
+    font-size: 11px;
+    margin-top: 2px;
+}
+
+.email-favorite-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.email-favorite-inline-editor {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.email-favorite-inline-editor .email-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.email-contact-row {
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.email-contact-row-main {
+    margin-bottom: 10px;
+}
+
+.email-contact-row-name {
+    color: var(--color-text-primary, #fff);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.email-contact-row-meta {
+    color: var(--color-text-secondary, #9a9a9a);
+    font-size: 11px;
+    margin-top: 3px;
+}
+
+.email-contact-row-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.email-contact-row-badges.compact {
+    margin-top: 6px;
+}
+
+.email-contact-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.email-contact-badge.is-favorite {
+    background: rgba(232, 185, 77, 0.18);
+    color: #ffe7a9;
+}
+
+.email-contact-badge.is-online {
+    background: rgba(77, 201, 124, 0.18);
+    color: #c8ffd7;
+}
+
+.email-contact-badge.is-alias {
+    background: rgba(96, 150, 224, 0.18);
+    color: #d7e8ff;
+}
+
+.email-contact-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.email-contact-row-actions .email-input {
+    flex: 1;
+    min-width: 160px;
+}
+
+.email-contacts-empty-inline {
+    color: var(--color-text-secondary, #9a9a9a);
+    font-size: 12px;
+}
+
+.email-editor-member-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.email-editor-member-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(74, 158, 255, 0.12);
+    border: 1px solid rgba(74, 158, 255, 0.28);
+    color: #dbe9ff;
+    font-size: 12px;
+}
+
+.email-editor-member-remove {
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.email-collection-contact-picker {
+    max-height: 260px;
+    overflow: auto;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+}
+
+.email-collection-contact-option {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.email-collection-contact-option:last-child {
+    border-bottom: none;
+}
+
+.email-collection-contact-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.email-collection-contact-name {
+    color: var(--color-text-primary, #fff);
+    font-size: 13px;
+}
+
+.email-collection-contact-meta {
+    color: var(--color-text-secondary, #9a9a9a);
+    font-size: 11px;
+}
+
+.email-contacts-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.email-contacts-help-copy {
+    color: var(--color-text-secondary, #c2c8d0);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.email-collection-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.email-collection-card-preview {
+    color: var(--color-text-secondary, #c2c8d0);
+    font-size: 12px;
+    line-height: 1.5;
+    min-height: 36px;
+}
+
+.email-empty-state.compact {
+    padding: 18px 12px;
 }
 
 .email-attachments-section {

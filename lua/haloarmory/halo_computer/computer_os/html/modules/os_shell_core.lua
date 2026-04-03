@@ -823,6 +823,8 @@ var osShell = {
                 program.init(windowId);
             }, 100);
         }
+
+        return windowId;
     },
     
     /**
