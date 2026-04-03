@@ -288,16 +288,26 @@ end
 
 concommand.Add( "VEHICLE.Load", function( ply, cmd, args )
     local veh = HALOARMORY.Vehicles.GetFromTraceVehicle( ply )
+    if not IsValid( veh ) then
+        return
+    end
     HALOARMORY.Vehicles.LoadVehicle( veh )
 end )
 
 concommand.Add( "VEHICLE.Unload", function( ply, cmd, args )
     local veh = HALOARMORY.Vehicles.GetFromTraceVehicle( ply )
+    if not IsValid( veh ) then
+        return
+    end
     HALOARMORY.Vehicles.UnLoadVehicle( veh )
 end )
 
 concommand.Add( "VEHICLE.ToggleLoad", function( ply, cmd, args )
     local veh = HALOARMORY.Vehicles.GetFromTraceVehicle( ply )
+
+    if not IsValid( veh ) then
+        return
+    end
 
     if veh.LoadedObjects then
         HALOARMORY.Vehicles.UnLoadVehicle( veh )
