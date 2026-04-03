@@ -210,6 +210,8 @@ function ENT:SpawnVehicle( ply, vehicle_key, vehicle_options )
             end
 
             timer.Simple( 0.1, function()
+                if not IsValid( Vehicle ) then return end
+
                 // Set the options here
                 if VehicleInQueue.options.color then
                     local selectedColor = VehicleTable.colors[VehicleInQueue.options.color]
@@ -239,6 +241,8 @@ function ENT:SpawnVehicle( ply, vehicle_key, vehicle_options )
             end )
 
             timer.Simple( 0.5, function()
+                if not IsValid( Vehicle ) then return end
+
                 // If vehicle is frozen, unfreeze it
                 local physVeh = Vehicle:GetPhysicsObject()
                 if IsValid( physVeh ) then
@@ -260,6 +264,10 @@ function ENT:SpawnVehicle( ply, vehicle_key, vehicle_options )
 
 
             // Set the owner of the vehicle
+            if not IsValid( Vehicle ) then
+                return
+            end
+
             Vehicle:CPPISetOwner(ply)
 
             // Remove the supplies from the network
