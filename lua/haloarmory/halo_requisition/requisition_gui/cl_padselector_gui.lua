@@ -17,7 +17,7 @@ HALOARMORY.Requisition.Theme = HALOARMORY.Requisition.Theme or {
 }
 
 
-function HALOARMORY.Requisition.OpenPadSelector( callback )
+function HALOARMORY.Requisition.OpenPadSelector( callback, source_ent )
 
     local MainWindow = vgui.Create( "DFrame" )
     MainWindow:SetSize( 576, 440 )
@@ -107,13 +107,14 @@ function HALOARMORY.Requisition.OpenPadSelector( callback )
             local VehiclePadIcon = vgui.Create( "DImage", VehiclePad )
             VehiclePadIcon:Dock( LEFT )
 
-            local vehicle_icon = v.DeviceIcon or "vgui/haloarmory/icons/anchor.png"
+            local vehicle_icon = HALOARMORY.Requisition.GetPadModelIcon( v:GetModel() ) or v.DeviceIcon or "vgui/haloarmory/icons/anchor.png"
 
             VehiclePadIcon:SetImage( vehicle_icon )
 
             local VehiclePadName = vgui.Create( "DLabel", VehiclePad )
             VehiclePadName:Dock( FILL )
-            VehiclePadName:SetText( tostring( v:GetDeviceName() ) )
+            local category_name = HALOARMORY.Requisition.GetCategoryName( v.GetPadCategory and v:GetPadCategory() or nil )
+            VehiclePadName:SetText( tostring( v:GetDeviceName() ) .. " [" .. category_name .. "]" )
             VehiclePadName:SetFont( "QuanticoHeader" )
             VehiclePadName:SetTextColor( HALOARMORY.Requisition.Theme["text"] )
             VehiclePadName:SetContentAlignment( 5 )
@@ -133,7 +134,7 @@ function HALOARMORY.Requisition.OpenPadSelector( callback )
                 if callback and isfunction( callback ) then
                     callback( v )
                 else
-                    HALOARMORY.Requisition.OpenVehiclePad( v )
+                    HALOARMORY.Requisition.OpenVehiclePad( v, source_ent )
                 end
 
                 MainWindow:Remove()
@@ -141,9 +142,7 @@ function HALOARMORY.Requisition.OpenPadSelector( callback )
             
         end
 
-
-
-    end )
+    end, source_ent )
 
 end
 

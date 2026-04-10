@@ -17,6 +17,8 @@ function HALOARMORY.VEHICLES.ADMIN.SAVEVEHICLE( vehicle_filename, vehicle_table 
         file.CreateDir( vehicles_path )
     end
 
+    vehicle_table = HALOARMORY.Requisition.NormalizeVehicleTable( vehicle_table )
+
     local full_path = vehicles_path..vehicle_filename..".json"
 
     if vehicle_table["old_filename"] and file.Exists( vehicles_path..vehicle_table["old_filename"]..".json", "DATA" ) then
@@ -69,6 +71,7 @@ function HALOARMORY.VEHICLES.ADMIN.LOADVEHICLES()
 
             // Check if the table is valid
             if file_table then
+                file_table = HALOARMORY.Requisition.NormalizeVehicleTable( file_table )
 
                 // Add the vehicle to the table
                 HALOARMORY.VEHICLES.LIST[ file_table.filename ] = file_table

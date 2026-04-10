@@ -18,10 +18,18 @@ function ENT:SetupDataTables()
 
     self:NetworkVar( "String", 0, "ConsoleName", { KeyName = "ConsoleName",	Edit = { type = "String", order = 1 } } )
     self:NetworkVar( "String", 1, "ConsoleID", { KeyName = "ConsoleID",	Edit = { type = "String", order = 2 } } )
+    self:NetworkVar( "String", 2, "ConsoleCategory", {
+        KeyName = "ConsoleCategory",
+        Edit = {
+            type = "Combo",
+            order = 3,
+            values = HALOARMORY.Requisition.GetCategoryValues(),
+        }
+    } )
 
     if SERVER then
         self:SetConsoleName( self.PrintName )
-        --self:SetConsoleID( "UNSC" )
+        self:SetConsoleCategory( HALOARMORY.Requisition.GetDefaultCategory() )
     end
 
 end

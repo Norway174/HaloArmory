@@ -5,7 +5,11 @@ include("shared.lua")
 
 function ENT:Initialize()
     -- Sets what model to use
-    self:SetModel( self.DeviceModel )
+    local current_model = tostring( self:GetModel() or "" )
+    if current_model == "" or current_model == "models/error.mdl" then
+        self:SetModel( self.DeviceModel )
+    end
+
     self:SetupModel()
 
     -- Physics stuff

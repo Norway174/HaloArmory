@@ -11,208 +11,354 @@ local ACTION_REQUEST_VEHICLE_PADS = 1
 local ACTION_REQUEST_VEHICLES = 2
 local ACTION_SPAWN_VEHICLE = 3
 local ACTION_REMOVE_VEHICLE = 4
+local ACTION_REQUEST_PAD_CONFIG = 5
+local ACTION_OPEN_PAD_CONFIG = 6
+local ACTION_APPLY_PAD_CONFIG = 7
+local ACTION_CREATE_PAD = 8
 
 if SERVER then
-    util.AddNetworkString(NET_NAME)
+    util.AddNetworkString( NET_NAME )
+end
+
+local function get_sorted_networks()
+    local networks = {}
+
+    if SERVER and HALOARMORY.Logistics and isfunction( HALOARMORY.Logistics.SyncNetworks ) then
+        networks = HALOARMORY.Logistics.SyncNetworks() or {}
+    end
+
+    local sorted = {}
+    for network_id in pairs( networks ) do
+        table.insert( sorted, tostring( network_id ) )
+    end
+
+    table.sort( sorted, function( a, b )
+        return tostring( a ) < tostring( b )
+    end )
+
+    return sorted
 end
 
 if CLIENT then
     local Callbacks = {}
+    local function run_callback( action, ... )
+        if not Callbacks[action] then return end
 
-    net.Receive(NET_NAME, function( len )
-        local action = net.ReadUInt(8)
+        Callbacks[action]( ... )
+        Callbacks[action] = nil
+    end
+
+    local function open_pad_config_gui_later( pad_ent, networks, spawn_request )
+        timer.Simple( 0, function()
+            if not isfunction( HALOARMORY.Requisition.OpenPadConfigGUI ) then return end
+
+            HALOARMORY.Requisition.OpenPadConfigGUI( pad_ent, networks, spawn_request )
+        end )
+    end
+
+    net.Receive( NET_NAME, function()
+        local action = net.ReadUInt( 8 )
 
         if action == ACTION_REQUEST_VEHICLE_PADS then
-            local count = net.ReadUInt(13)
+            local count = net.ReadUInt( 13 )
             local pads = {}
 
             for i = 1, count do
-                table.insert(pads, net.ReadEntity())
+                table.insert( pads, net.ReadEntity() )
             end
 
-            if Callbacks[ACTION_REQUEST_VEHICLE_PADS] then
-                Callbacks[ACTION_REQUEST_VEHICLE_PADS](pads)
-
-                Callbacks[ACTION_REQUEST_VEHICLE_PADS] = nil
-            end
+            run_callback( ACTION_REQUEST_VEHICLE_PADS, pads )
 
         elseif action == ACTION_REQUEST_VEHICLES then
-
-            local count = net.ReadUInt(32)
+            local count = net.ReadUInt( 32 )
             local vehicles = {}
 
             for i = 1, count do
                 local vehicle_key = net.ReadString()
-                local dataLen = net.ReadUInt(32)
-                local data = net.ReadData(dataLen)
-                local vehicle = util.JSONToTable(util.Decompress(data))
+                local data_len = net.ReadUInt( 32 )
+                local data = net.ReadData( data_len )
+                local vehicle = util.JSONToTable( util.Decompress( data ) )
 
                 vehicles[vehicle_key] = vehicle
             end
 
-            if Callbacks[ACTION_REQUEST_VEHICLES] then
-                Callbacks[ACTION_REQUEST_VEHICLES](vehicles)
-
-                Callbacks[ACTION_REQUEST_VEHICLES] = nil
-            end
+            run_callback( ACTION_REQUEST_VEHICLES, vehicles )
 
         elseif action == ACTION_SPAWN_VEHICLE then
-
             local success = net.ReadBool()
 
-            if Callbacks[ACTION_SPAWN_VEHICLE] then
-                Callbacks[ACTION_SPAWN_VEHICLE](success)
-
-                Callbacks[ACTION_SPAWN_VEHICLE] = nil
-            end
+            run_callback( ACTION_SPAWN_VEHICLE, success )
 
         elseif action == ACTION_REMOVE_VEHICLE then
-                
-                local success = net.ReadBool()
-    
-                if Callbacks[ACTION_REMOVE_VEHICLE] then
-                    Callbacks[ACTION_REMOVE_VEHICLE](success)
-    
-                    Callbacks[ACTION_REMOVE_VEHICLE] = nil
-                end
+            local success = net.ReadBool()
 
+            run_callback( ACTION_REMOVE_VEHICLE, success )
+
+        elseif action == ACTION_OPEN_PAD_CONFIG then
+            local pad_ent = net.ReadEntity()
+            local networks = net.ReadTable()
+
+            open_pad_config_gui_later( pad_ent, networks )
+
+        elseif action == ACTION_APPLY_PAD_CONFIG then
+            local success = net.ReadBool()
+
+            run_callback( ACTION_APPLY_PAD_CONFIG, success )
+
+        elseif action == ACTION_CREATE_PAD then
+            local success = net.ReadBool()
+
+            run_callback( ACTION_CREATE_PAD, success )
         end
-    end)
+    end )
 
-    function HALOARMORY.VEHICLES.NETWORK.RequestVehiclePads( callback )
+    function HALOARMORY.VEHICLES.NETWORK.RequestVehiclePads( callback, source_ent )
         Callbacks[ACTION_REQUEST_VEHICLE_PADS] = callback
 
-        net.Start(NET_NAME)
-            net.WriteUInt(ACTION_REQUEST_VEHICLE_PADS, 8)
+        net.Start( NET_NAME )
+            net.WriteUInt( ACTION_REQUEST_VEHICLE_PADS, 8 )
+            net.WriteEntity( IsValid( source_ent ) and source_ent or NULL )
         net.SendToServer()
     end
 
-    function HALOARMORY.VEHICLES.NETWORK.RequestVehicles( PadEnt, callback )
+    function HALOARMORY.VEHICLES.NETWORK.RequestVehicles( pad_ent, callback )
         Callbacks[ACTION_REQUEST_VEHICLES] = callback
 
-        net.Start(NET_NAME)
-            net.WriteUInt(ACTION_REQUEST_VEHICLES, 8)
-            net.WriteEntity(PadEnt)
+        net.Start( NET_NAME )
+            net.WriteUInt( ACTION_REQUEST_VEHICLES, 8 )
+            net.WriteEntity( pad_ent )
         net.SendToServer()
     end
 
-    function HALOARMORY.VEHICLES.NETWORK.SpawnVehicle( PadEnt, vehicle_key, vehicle_options, callback )
+    function HALOARMORY.VEHICLES.NETWORK.SpawnVehicle( pad_ent, vehicle_key, vehicle_options, callback )
         Callbacks[ACTION_SPAWN_VEHICLE] = callback
 
-        net.Start(NET_NAME)
-            net.WriteUInt(ACTION_SPAWN_VEHICLE, 8)
-            net.WriteEntity(PadEnt)
-            net.WriteString(vehicle_key)
-            net.WriteTable(vehicle_options)
+        net.Start( NET_NAME )
+            net.WriteUInt( ACTION_SPAWN_VEHICLE, 8 )
+            net.WriteEntity( pad_ent )
+            net.WriteString( vehicle_key )
+            net.WriteTable( vehicle_options )
         net.SendToServer()
     end
 
-    function HALOARMORY.VEHICLES.NETWORK.RemoveVehicle( PadEnt, vehicle, callback )
+    function HALOARMORY.VEHICLES.NETWORK.RemoveVehicle( pad_ent, vehicle, callback )
         Callbacks[ACTION_REMOVE_VEHICLE] = callback
 
-        net.Start(NET_NAME)
-            net.WriteUInt(ACTION_REMOVE_VEHICLE, 8)
-            net.WriteEntity(PadEnt)
-            net.WriteEntity(vehicle)
+        net.Start( NET_NAME )
+            net.WriteUInt( ACTION_REMOVE_VEHICLE, 8 )
+            net.WriteEntity( pad_ent )
+            net.WriteEntity( vehicle )
+        net.SendToServer()
+    end
+
+    function HALOARMORY.VEHICLES.NETWORK.RequestPadConfig( pad_ent )
+        net.Start( NET_NAME )
+            net.WriteUInt( ACTION_REQUEST_PAD_CONFIG, 8 )
+            net.WriteEntity( pad_ent )
+        net.SendToServer()
+    end
+
+    function HALOARMORY.VEHICLES.NETWORK.ApplyPadConfig( pad_ent, data, callback )
+        Callbacks[ACTION_APPLY_PAD_CONFIG] = callback
+
+        net.Start( NET_NAME )
+            net.WriteUInt( ACTION_APPLY_PAD_CONFIG, 8 )
+            net.WriteEntity( pad_ent )
+            net.WriteTable( data or {} )
+        net.SendToServer()
+    end
+
+    function HALOARMORY.VEHICLES.NETWORK.CreatePad( class_name, spawn_data, data, callback )
+        Callbacks[ACTION_CREATE_PAD] = callback
+
+        net.Start( NET_NAME )
+            net.WriteUInt( ACTION_CREATE_PAD, 8 )
+            net.WriteString( tostring( class_name or "halo_sp_vr_pad" ) )
+            net.WriteVector( isvector( spawn_data and spawn_data.spawn_pos ) and spawn_data.spawn_pos or vector_origin )
+            net.WriteAngle( isangle( spawn_data and spawn_data.spawn_ang ) and spawn_data.spawn_ang or angle_zero )
+            net.WriteTable( data or {} )
         net.SendToServer()
     end
 end
 
 if SERVER then
-    net.Receive(NET_NAME, function( len, ply )
-        local action = net.ReadUInt(8)
+    local function can_configure_pad( ply, ent )
+        if not IsValid( ply ) or not IsValid( ent ) then return false end
+
+        if not ply:IsAdmin() then
+            return false
+        end
+
+        return true
+    end
+
+    function HALOARMORY.VEHICLES.NETWORK.OpenPadConfig( pad_ent, ply )
+        if not IsValid( pad_ent ) or not IsValid( ply ) then return end
+
+        net.Start( NET_NAME )
+            net.WriteUInt( ACTION_OPEN_PAD_CONFIG, 8 )
+            net.WriteEntity( pad_ent )
+            net.WriteTable( get_sorted_networks() )
+        net.Send( ply )
+    end
+
+    net.Receive( NET_NAME, function( _, ply )
+        local action = net.ReadUInt( 8 )
 
         if action == ACTION_REQUEST_VEHICLE_PADS then
+            local source_ent = net.ReadEntity()
             local pads = {}
 
-            if ents.Iterator then
-                for _, ent in ents.Iterator() do
-                    if ( ent.VehiclePad ) then
-                        table.insert(pads, ent)
+            local function add_pad( ent )
+                if not IsValid( ent ) or not ent.VehiclePad then return end
+
+                if IsValid( source_ent ) and isfunction( source_ent.GetConsoleCategory ) then
+                    if not HALOARMORY.Requisition.IsPadCompatibleWithConsole( ent, source_ent ) then
+                        return
                     end
                 end
 
-            else // Compatibility mode if no pads are found
-                for _, ent in pairs(ents.GetAll()) do
-                    if ( ent.VehiclePad ) then
-                        table.insert(pads, ent)
+                table.insert( pads, ent )
+            end
+
+            if ents.Iterator then
+                for _, ent in ents.Iterator() do
+                    add_pad( ent )
+                end
+            else
+                for _, ent in pairs( ents.GetAll() ) do
+                    add_pad( ent )
+                end
+            end
+
+            table.sort( pads, function( a, b )
+                return a:GetPos():Distance( ply:GetPos() ) < b:GetPos():Distance( ply:GetPos() )
+            end )
+
+            net.Start( NET_NAME )
+                net.WriteUInt( ACTION_REQUEST_VEHICLE_PADS, 8 )
+                net.WriteUInt( #pads, 13 )
+
+                for _, pad in ipairs( pads ) do
+                    net.WriteEntity( pad )
+                end
+            net.Send( ply )
+
+        elseif action == ACTION_REQUEST_VEHICLES then
+            local pad_ent = net.ReadEntity()
+
+            if not IsValid( pad_ent ) or not pad_ent.VehiclePad then return end
+
+            local vehicles = pad_ent:GetVehicles( ply )
+
+            net.Start( NET_NAME )
+                net.WriteUInt( ACTION_REQUEST_VEHICLES, 8 )
+                net.WriteUInt( table.Count( vehicles ), 32 )
+
+                for vehicle_key, vehicle in pairs( vehicles ) do
+                    net.WriteString( vehicle_key )
+
+                    local data = util.Compress( util.TableToJSON( vehicle ) )
+                    local data_len = #data
+                    net.WriteUInt( data_len, 32 )
+                    net.WriteData( data, data_len )
+                end
+            net.Send( ply )
+
+        elseif action == ACTION_SPAWN_VEHICLE then
+            local pad_ent = net.ReadEntity()
+            local vehicle_key = net.ReadString()
+            local vehicle_options = net.ReadTable()
+
+            if not IsValid( pad_ent ) or not pad_ent.VehiclePad then return end
+
+            local success = pad_ent:SpawnVehicle( ply, vehicle_key, vehicle_options )
+
+            net.Start( NET_NAME )
+                net.WriteUInt( ACTION_SPAWN_VEHICLE, 8 )
+                net.WriteBool( success )
+            net.Send( ply )
+
+        elseif action == ACTION_REMOVE_VEHICLE then
+            local pad_ent = net.ReadEntity()
+            local vehicle = net.ReadEntity()
+
+            if not IsValid( pad_ent ) or not pad_ent.VehiclePad then return end
+            if not IsValid( vehicle ) then return end
+
+            local success = pad_ent:ReclaimVehicle( ply, vehicle )
+
+            net.Start( NET_NAME )
+                net.WriteUInt( ACTION_REMOVE_VEHICLE, 8 )
+                net.WriteBool( success )
+            net.Send( ply )
+
+        elseif action == ACTION_REQUEST_PAD_CONFIG then
+            local pad_ent = net.ReadEntity()
+
+            if not IsValid( pad_ent ) or not pad_ent.VehiclePad then return end
+            if not can_configure_pad( ply, pad_ent ) then return end
+
+            HALOARMORY.VEHICLES.NETWORK.OpenPadConfig( pad_ent, ply )
+
+        elseif action == ACTION_APPLY_PAD_CONFIG then
+            local pad_ent = net.ReadEntity()
+            local config_data = net.ReadTable()
+            local success = false
+
+            if IsValid( pad_ent ) and pad_ent.VehiclePad and can_configure_pad( ply, pad_ent ) and isfunction( pad_ent.ApplyPadConfig ) then
+                success = pad_ent:ApplyPadConfig( config_data ) == true
+            end
+
+            net.Start( NET_NAME )
+                net.WriteUInt( ACTION_APPLY_PAD_CONFIG, 8 )
+                net.WriteBool( success )
+            net.Send( ply )
+
+        elseif action == ACTION_CREATE_PAD then
+            local class_name = net.ReadString()
+            local spawn_pos = net.ReadVector()
+            local spawn_ang = net.ReadAngle()
+            local config_data = net.ReadTable()
+            local success = false
+
+            class_name = tostring( class_name or "halo_sp_vr_pad" )
+
+            local ent_data = scripted_ents.GetStored( class_name )
+            if istable( ent_data ) and istable( ent_data.t ) and ent_data.t.VehiclePad then
+                local ent = ents.Create( class_name )
+                if IsValid( ent ) then
+                    ent:SetPos( spawn_pos )
+                    ent:SetAngles( spawn_ang )
+                    ent:Spawn()
+                    ent:Activate()
+
+                    if ent.CPPISetOwner then
+                        ent:CPPISetOwner( ply )
+                    end
+
+                    if isfunction( ent.ApplyPadConfig ) then
+                        success = ent:ApplyPadConfig( config_data ) == true
+                    end
+
+                    if success then
+                        undo.Create( "Vehicle Pad" )
+                            undo.AddEntity( ent )
+                            undo.SetPlayer( ply )
+                        undo.Finish()
+
+                        cleanup.Add( ply, "sents", ent )
+                        ply:AddCleanup( "sents", ent )
+                    else
+                        ent:Remove()
                     end
                 end
             end
 
-            net.Start(NET_NAME)
-                net.WriteUInt(ACTION_REQUEST_VEHICLE_PADS, 8)
-                net.WriteUInt(#pads, 13)
-
-                for _, pad in pairs(pads) do
-                    net.WriteEntity(pad)
-                end
-            net.Send(ply)
-        
-        elseif action == ACTION_REQUEST_VEHICLES then
-
-            local VPadENT = net.ReadEntity()
-
-            if not IsValid(VPadENT) or not VPadENT.VehiclePad then return end
-
-            local vehicles = VPadENT:GetVehicles( ply )
-
-            --print( "Sending vehicles to client", ply, table.Count( vehicles ) )
-
-            net.Start(NET_NAME)
-                net.WriteUInt(ACTION_REQUEST_VEHICLES, 8)
-
-                net.WriteUInt(table.Count( vehicles ), 32)
-
-                for vehicle_key, vehicle in pairs(vehicles) do
-                    -- print( "Sending vehicle", vehicle_key, vehicle )
-                    -- if istable(vehicle) then
-                    --     PrintTable(vehicle)
-                    -- end
-
-                    net.WriteString(vehicle_key)
-
-                    local data = util.Compress(util.TableToJSON(vehicle))
-                    local dataLen = #data
-                    net.WriteUInt(dataLen, 32)
-                    net.WriteData(data, dataLen)
-                end
-
-                
-            net.Send(ply)
-
-        elseif action == ACTION_SPAWN_VEHICLE then
-
-            local VPadENT = net.ReadEntity()
-            local vehicle_key = net.ReadString()
-            local vehicle_options = net.ReadTable()
-
-            if not IsValid(VPadENT) or not VPadENT.VehiclePad then return end
-
-            --print( "Spawning vehicle", vehicle_key, vehicle_options )
-
-            local success = VPadENT:SpawnVehicle( ply, vehicle_key, vehicle_options )
-
-            net.Start(NET_NAME)
-                net.WriteUInt(ACTION_SPAWN_VEHICLE, 8)
-                net.WriteBool(success)
-            net.Send(ply)
-
-        elseif action == ACTION_REMOVE_VEHICLE then
-                
-            local VPadENT = net.ReadEntity()
-            local vehicle = net.ReadEntity()
-
-            if not IsValid(VPadENT) or not VPadENT.VehiclePad then return end
-            if not IsValid(vehicle) then return end
-    
-            local success = VPadENT:ReclaimVehicle( ply, vehicle )
-
-            net.Start(NET_NAME)
-                net.WriteUInt(ACTION_REMOVE_VEHICLE, 8)
-                net.WriteBool(success)
-            net.Send(ply)
-                
+            net.Start( NET_NAME )
+                net.WriteUInt( ACTION_CREATE_PAD, 8 )
+                net.WriteBool( success )
+            net.Send( ply )
         end
-    end)
+    end )
 end

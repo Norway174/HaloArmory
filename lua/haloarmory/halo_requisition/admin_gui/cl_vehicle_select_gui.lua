@@ -5,15 +5,13 @@ HALOARMORY.VEHICLES.ADMIN_GUI = HALOARMORY.VEHICLES.ADMIN_GUI or {}
 
 local NewVehicle = true
 
-local NewTemplateVehicle = {
+local BaseTemplateVehicle = {
     ["filename"] = "my_vehicle",
     ["entity"] = "sim_fphys_halo_warthog_chaingun",
     ["name"] = "",
     ["cost"] = 5000,
-    ["sizes"] = {
-        ["small"] = true,
-        ["large"] = false,
-        ["air"] = true,
+    ["categories"] = {
+        ["default"] = true,
     },
     ["defaults"] = {
         ["color"] = "UNSC Green",
@@ -41,7 +39,11 @@ local NewTemplateVehicle = {
     },
 }
 
-local VehicleBeingEdited = NewTemplateVehicle
+local function NewTemplateVehicle()
+    return HALOARMORY.Requisition.NormalizeVehicleTable( table.Copy( BaseTemplateVehicle ) )
+end
+
+local VehicleBeingEdited = NewTemplateVehicle()
 
 
 
@@ -932,12 +934,12 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenVehicleEditor( The_Vehicle )
         HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor = nil
     end
 
-    The_Vehicle = The_Vehicle or VehicleBeingEdited
+    The_Vehicle = HALOARMORY.Requisition.NormalizeVehicleTable( table.Copy( The_Vehicle or VehicleBeingEdited ) )
 
     VehicleBeingEdited = The_Vehicle
 
     local MainFrame = vgui.Create("DFrame")
-    MainFrame:SetSize(300, 350)
+    MainFrame:SetSize(360, 470)
     MainFrame:Center()
     MainFrame:SetTitle("HALOARMORY.VEHICLES.EDITOR")
     MainFrame:MakePopup()
@@ -947,6 +949,8 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenVehicleEditor( The_Vehicle )
     MainFrame.OnClose = function()
         HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor = nil
     end
+
+    local UpdateAndCheckVehicleClass
     
     local LabelWith = 75
 
@@ -1060,34 +1064,37 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenVehicleEditor( The_Vehicle )
     VehicleCostTextEntry:SetValue( tonumber( VehicleBeingEdited["cost"] ) )
 
 
-    // VEHICLE SIZE (Three checkboces; Small, Large, Air)
-    local VehicleSizeRow = vgui.Create("DPanel", MainFrame)
-    VehicleSizeRow:Dock( TOP )
-    VehicleSizeRow:DockMargin( 0, 0, 2, 5 )
-    VehicleSizeRow.Paint = function( self, w, h )
+    // VEHICLE CATEGORIES
+    local CategoryHeight = math.max( 90, 26 + ( #HALOARMORY.Requisition.GetCategories() * 22 ) )
+
+    local VehicleCategoryRow = vgui.Create("DPanel", MainFrame)
+    VehicleCategoryRow:Dock( TOP )
+    VehicleCategoryRow:DockMargin( 0, 0, 2, 5 )
+    VehicleCategoryRow:SetTall( CategoryHeight )
+    VehicleCategoryRow.Paint = function( self, w, h )
         --draw.RoundedBox( 0, 0, 0, w, h, Color( 0, 0, 0, 255 ) )
     end
 
-    local VehicleSizeLabel = vgui.Create("DLabel", VehicleSizeRow)
-    VehicleSizeLabel:Dock( LEFT )
-    VehicleSizeLabel:SetWide( LabelWith )
-    VehicleSizeLabel:SetText("Sizes:" )
+    local VehicleCategoryLabel = vgui.Create("DLabel", VehicleCategoryRow)
+    VehicleCategoryLabel:Dock( LEFT )
+    VehicleCategoryLabel:SetWide( LabelWith )
+    VehicleCategoryLabel:SetText("Categories:" )
 
-    local VehicleSizeSmall = vgui.Create("DCheckBoxLabel", VehicleSizeRow)
-    VehicleSizeSmall:Dock( LEFT )
-    VehicleSizeSmall:SetText("Small")
-    VehicleSizeSmall:SetValue( VehicleBeingEdited["sizes"]["small"] )
+    local VehicleCategoryScroll = vgui.Create("DScrollPanel", VehicleCategoryRow)
+    VehicleCategoryScroll:Dock( FILL )
 
-    local VehicleSizeLarge = vgui.Create("DCheckBoxLabel", VehicleSizeRow)
-    VehicleSizeLarge:Dock( LEFT )
-    VehicleSizeLarge:DockMargin( 30, 0, 30, 0 )
-    VehicleSizeLarge:SetText("Large")
-    VehicleSizeLarge:SetValue( VehicleBeingEdited["sizes"]["large"] )
+    for _, category in ipairs( HALOARMORY.Requisition.GetCategories() ) do
+        local CategoryOption = vgui.Create("DCheckBoxLabel", VehicleCategoryScroll)
+        CategoryOption:Dock( TOP )
+        CategoryOption:SetText( category.id )
+        CategoryOption:SetValue( VehicleBeingEdited["categories"][category.id] and 1 or 0 )
+        CategoryOption:SizeToContents()
 
-    local VehicleSizeAir = vgui.Create("DCheckBoxLabel", VehicleSizeRow)
-    VehicleSizeAir:Dock( LEFT )
-    VehicleSizeAir:SetText("Air")
-    VehicleSizeAir:SetValue( VehicleBeingEdited["sizes"]["air"] )
+        CategoryOption.OnChange = function( self )
+            VehicleBeingEdited["categories"][category.id] = self:GetChecked() or nil
+            UpdateAndCheckVehicleClass()
+        end
+    end
 
     // VEHICLE EDIT Loadouts Button
     local VehicleLoadoutsRow = vgui.Create("DPanel", MainFrame)
@@ -1175,7 +1182,7 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenVehicleEditor( The_Vehicle )
 
         HALOARMORY.VEHICLES.ADMIN_GUI.OpenGUI()
 
-        VehicleBeingEdited = NewTemplateVehicle
+        VehicleBeingEdited = NewTemplateVehicle()
 
     end
 
@@ -1207,7 +1214,7 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenVehicleEditor( The_Vehicle )
 
 
 
-    local function UpdateAndCheckVehicleClass()
+    function UpdateAndCheckVehicleClass()
         local VehicleClass = VehicleClassTextEntry:GetValue()
 
         local Vehicle_Ent, VehicleModel, VehiclePrintName = HALOARMORY.Requisition.GetModelAndNameFromVehicle( VehicleBeingEdited["entity"] )
@@ -1291,33 +1298,6 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenVehicleEditor( The_Vehicle )
 
     end
 
-    VehicleSizeSmall.OnChange = function( self )
-
-        local VehicleSizeSmallCheck = VehicleSizeSmall:GetChecked()
-        VehicleBeingEdited["sizes"]["small"] = VehicleSizeSmallCheck
-
-        UpdateAndCheckVehicleClass()
-
-    end
-
-    VehicleSizeLarge.OnChange = function( self )
-
-        local VehicleSizeLargeCheck = VehicleSizeLarge:GetChecked()
-        VehicleBeingEdited["sizes"]["large"] = VehicleSizeLargeCheck
-
-        UpdateAndCheckVehicleClass()
-
-    end
-
-    VehicleSizeAir.OnChange = function( self )
-
-        local VehicleSizeAirCheck = VehicleSizeAir:GetChecked()
-        VehicleBeingEdited["sizes"]["air"] = VehicleSizeAirCheck
-
-        UpdateAndCheckVehicleClass()
-
-    end
-
     UpdateAndCheckVehicleClass()
 
 end
@@ -1390,7 +1370,7 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenGUI( VehicleList )
 
         NewVehicle = true
 
-        VehicleBeingEdited = NewTemplateVehicle
+        VehicleBeingEdited = NewTemplateVehicle()
 
         HALOARMORY.VEHICLES.ADMIN_GUI.OpenVehicleEditor()
 

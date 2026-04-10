@@ -17,7 +17,7 @@ HALOARMORY.Requisition.Theme = {
 }
 
 
-function HALOARMORY.Requisition.OpenVehiclePad( PadEnt )
+function HALOARMORY.Requisition.OpenVehiclePad( PadEnt, SourceEnt )
 
     // Let's make sure we're not already in a menu
     if HALOARMORY.Requisition.GUI.Pad_Menu then
@@ -50,6 +50,7 @@ function HALOARMORY.Requisition.OpenVehiclePad( PadEnt )
 
     HALOARMORY.Requisition.GUI.Pad_Menu = MainFrame
     HALOARMORY.Requisition.GUI.Pad_Ent = PadEnt
+    HALOARMORY.Requisition.GUI.SourceEnt = SourceEnt
 
     // Create an exit button
     local ExitButton = vgui.Create("DButton", MainFrame)
@@ -142,8 +143,8 @@ function HALOARMORY.Requisition.OpenVehiclePad( PadEnt )
         // Open a menu to select a new pad
         HALOARMORY.Requisition.OpenPadSelector( function( newPad )
             // Callback function to run when a pad is selected
-            HALOARMORY.Requisition.OpenVehiclePad( newPad )
-        end )
+            HALOARMORY.Requisition.OpenVehiclePad( newPad, SourceEnt )
+        end, SourceEnt )
     end
 
 
@@ -197,20 +198,6 @@ function HALOARMORY.Requisition.OpenVehiclePad( PadEnt )
             -- if istable(v) then
             --     PrintTable(v)
             -- end
-
-            // Check the correct size of vehicle for the pad.
-            local can_spawn = false
-            for _, pad_size in pairs( PadEnt.VehicleSize ) do
-                if v["sizes"][pad_size] then
-                    --print("Vehicle is correct size")
-                    can_spawn = true
-                else
-                    --print("Vehicle is not correct size")
-                end
-                
-            end
-            if not can_spawn then continue end
-
 
             local Vehicle_Ent, VehicleModel, VehiclePrintName = HALOARMORY.Requisition.GetModelAndNameFromVehicle( v["entity"] )
 
@@ -1067,5 +1054,5 @@ if HALOARMORY.Requisition.GUI.Pad_Menu then
     HALOARMORY.Requisition.GUI.Pad_Menu:Remove()
     HALOARMORY.Requisition.GUI.Pad_Menu = nil
 
-    HALOARMORY.Requisition.OpenVehiclePad( HALOARMORY.Requisition.GUI.Pad_Ent )
+    HALOARMORY.Requisition.OpenVehiclePad( HALOARMORY.Requisition.GUI.Pad_Ent, HALOARMORY.Requisition.GUI.SourceEnt )
 end

@@ -60,14 +60,18 @@ function ENT:DrawScreen()
 
                     for _, pad in pairs(pads) do
                         if pad:GetPadID() == self:GetConsoleID() then
-                            HALOARMORY.Requisition.OpenVehiclePad( pad )
+                            if HALOARMORY.Requisition.IsPadCompatibleWithConsole( pad, self ) then
+                                HALOARMORY.Requisition.OpenVehiclePad( pad, self )
+                            else
+                                HALOARMORY.Requisition.OpenPadSelector( nil, self )
+                            end
                             return
                         end
                     end
 
-                    HALOARMORY.Requisition.OpenPadSelector()
+                    HALOARMORY.Requisition.OpenPadSelector( nil, self )
                 else
-                    HALOARMORY.Requisition.OpenPadSelector()
+                    HALOARMORY.Requisition.OpenPadSelector( nil, self )
                 end
             end
         else
