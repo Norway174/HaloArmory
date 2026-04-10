@@ -183,10 +183,47 @@ function ENT:SpawnVehicle( ply, vehicle_key, vehicle_options )
         if not self:CanAfford( vehicle_table ) then return end
 
         local vehicle_ent = vehicle_table.entity
-        local pos = self:GetPos() + self:GetVehicleSpawnPos()
+        local base_pos = self:GetPos() + self:GetVehicleSpawnPos()
         local ang = self:GetAngles() + self:GetVehicleSpawnAng()
 
+        -- Calculate spawn offset based on platform and vehicle bounding boxes
+        local spawn_offset = Vector( 0, 0, 10 ) -- Default fallback offset
+        local spawn_height_offset = 10
+
+        -- Get platform's bounding box to find the top surface and center
+        local platform_mins, platform_maxs = self:OBBMins(), self:OBBMaxs()
+        if platform_mins and platform_maxs then
+            spawn_height_offset = platform_maxs.z - platform_mins.z + 5 -- Platform height + buffer
+        end
+
         local vehicle = nil
+        local vehicle_model = nil
+
+        -- Pre-calculate vehicle model for bounding box check
+        if simfphys and list.Get( "simfphys_vehicles" )[vehicle_ent] then
+            local simfphys_data = list.Get( "simfphys_vehicles" )[vehicle_ent]
+            vehicle_model = simfphys_data and simfphys_data.Model
+        elseif list.Get( "Vehicles" )[vehicle_ent] then
+            local engine_veh = list.Get( "Vehicles" )[vehicle_ent]
+            vehicle_model = engine_veh.Model
+        end
+
+        -- Calculate vehicle offset from its bounding box if model is known
+        if vehicle_model then
+            -- Use util.GetModelBounds with error handling
+            local success, veh_mins, veh_maxs = pcall( util.GetModelBounds, vehicle_model )
+            if success and veh_mins and veh_maxs then
+                -- Calculate vehicle center offset (model origin to actual center)
+                local veh_center_x = ( veh_mins.x + veh_maxs.x ) * 0.5
+                local veh_center_y = ( veh_mins.y + veh_maxs.y ) * 0.5
+                local vehicle_height = veh_maxs.z - veh_mins.z
+
+                -- Spawn position: center vehicle over platform origin + height offset
+                spawn_offset = Vector( -veh_center_x, -veh_center_y, spawn_height_offset + ( vehicle_height * 0.5 ) + 2 )
+            end
+        end
+
+        local pos = base_pos + spawn_offset
 
         if simfphys and list.Get( "simfphys_vehicles" )[vehicle_ent] then
             vehicle = simfphys.SpawnVehicleSimple( vehicle_ent, pos, ang )
