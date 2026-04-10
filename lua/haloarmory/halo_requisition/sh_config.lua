@@ -1,6 +1,7 @@
 HALOARMORY.MsgC("Shared HALOARMORY requisition config loaded!")
 
 HALOARMORY.Requisition = HALOARMORY.Requisition or {}
+HALOARMORY.VEHICLES = HALOARMORY.VEHICLES or {}
 
 HALOARMORY.Requisition.Config = HALOARMORY.Requisition.Config or {}
 
@@ -9,13 +10,6 @@ local function normalize_key( value )
 end
 
 HALOARMORY.Requisition.Config.DefaultCategory = "default"
-
-HALOARMORY.Requisition.Config.Categories = HALOARMORY.Requisition.Config.Categories or {
-    {
-        id = "default",
-        name = "Default",
-    },
-}
 
 local DEFAULT_PAD_MODELS = {
     {
@@ -103,18 +97,86 @@ end
 
 normalize_pad_models()
 
-function HALOARMORY.Requisition.GetCategories()
-    return HALOARMORY.Requisition.Config.Categories or {}
+local function sanitize_category_id( category_id )
+    category_id = string.Trim( tostring( category_id or "" ):lower() )
+    category_id = string.gsub( category_id, "%s+", "_" )
+    category_id = string.gsub( category_id, "[^%w_%-]", "_" )
+    category_id = string.gsub( category_id, "_+", "_" )
+    category_id = string.Trim( category_id, "_" )
+
+    return category_id
+end
+
+local function format_category_name( category_id )
+    local words = string.Explode( "_", tostring( category_id or "" ), false )
+
+    for index, word in ipairs( words ) do
+        words[index] = string.upper( string.Left( word, 1 ) ) .. string.lower( string.sub( word, 2 ) )
+    end
+
+    return table.concat( words, " " )
+end
+
+local function build_dynamic_categories( extra_categories )
+    local default_category = HALOARMORY.Requisition.GetDefaultCategory()
+    local categories = {}
+    local added = {}
+
+    local function add_category( category_id )
+        category_id = sanitize_category_id( category_id )
+        if category_id == "" or added[category_id] then return end
+
+        added[category_id] = true
+        table.insert( categories, {
+            id = category_id,
+            name = format_category_name( category_id ),
+        } )
+    end
+
+    add_category( default_category )
+
+    for _, vehicle_data in pairs( HALOARMORY.VEHICLES.LIST or {} ) do
+        if not istable( vehicle_data ) then continue end
+
+        for category_id, enabled in pairs( vehicle_data.categories or {} ) do
+            if enabled then
+                add_category( category_id )
+            end
+        end
+    end
+
+    if istable( extra_categories ) then
+        for _, category_id in ipairs( extra_categories ) do
+            add_category( category_id )
+        end
+    end
+
+    table.sort( categories, function( a, b )
+        if a.id == default_category then return true end
+        if b.id == default_category then return false end
+
+        return tostring( a.name ) < tostring( b.name )
+    end )
+
+    return categories
+end
+
+function HALOARMORY.Requisition.SanitizeCategory( category_id )
+    return sanitize_category_id( category_id )
+end
+
+function HALOARMORY.Requisition.GetCategories( extra_categories )
+    return build_dynamic_categories( extra_categories )
 end
 
 function HALOARMORY.Requisition.GetDefaultCategory()
     return HALOARMORY.Requisition.Config.DefaultCategory or "default"
 end
 
-function HALOARMORY.Requisition.GetCategoryValues()
+function HALOARMORY.Requisition.GetCategoryValues( extra_categories )
     local values = {}
 
-    for _, category in ipairs( HALOARMORY.Requisition.GetCategories() ) do
+    for _, category in ipairs( HALOARMORY.Requisition.GetCategories( extra_categories ) ) do
         if isstring( category.id ) and category.id ~= "" then
             values[category.id] = category.id
         end
@@ -126,31 +188,24 @@ function HALOARMORY.Requisition.GetCategoryValues()
 end
 
 function HALOARMORY.Requisition.GetCategoryName( category_id )
-    category_id = normalize_key( category_id )
+    category_id = sanitize_category_id( category_id )
 
-    for _, category in ipairs( HALOARMORY.Requisition.GetCategories() ) do
-        if normalize_key( category.id ) == category_id then
-            return category.name or category.id
-        end
+    if category_id == "" then
+        category_id = HALOARMORY.Requisition.GetDefaultCategory()
     end
 
-    return category_id ~= "" and category_id or HALOARMORY.Requisition.GetDefaultCategory()
+    return format_category_name( category_id )
 end
 
 function HALOARMORY.Requisition.NormalizeCategory( category_id )
-    category_id = normalize_key( category_id )
+    category_id = sanitize_category_id( category_id )
     local default_category = HALOARMORY.Requisition.GetDefaultCategory()
 
-    if category_id == "" then
+    if category_id == "" or category_id == "0" then
         return default_category
     end
 
-    local values = HALOARMORY.Requisition.GetCategoryValues()
-    if values[category_id] then
-        return category_id
-    end
-
-    return default_category
+    return category_id
 end
 
 function HALOARMORY.Requisition.GetPadModels()

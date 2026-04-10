@@ -141,6 +141,13 @@ function HALOARMORY.LoadCAMI()
         Description = "Let's the user edit vehicles.",
     })
 
+    // Register Network Editor
+    CAMI.RegisterPrivilege({
+        Name = "HALOARMORY.Network Editor",
+        MinAccess = "admin",
+        Description = "Let's the user edit supply networks.",
+    })
+
 
 
     HALOARMORY.MsgC("Successfully loaded CAMI Permissions")

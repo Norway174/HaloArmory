@@ -47,17 +47,15 @@ local function get_network_values( provided_networks, selected_network )
         table.insert( network_values, tostring( network_id ) )
     end
 
+    -- Fallback to client-side networks if none provided
     if #network_values <= 0 and istable( HALOARMORY.Logistics ) and istable( HALOARMORY.Logistics.Networks ) then
         for network_id in pairs( HALOARMORY.Logistics.Networks ) do
             table.insert( network_values, tostring( network_id ) )
         end
     end
 
-    if #network_values <= 0 then
-        table.insert( network_values, "0" )
-    end
-
-    if selected_network ~= "" and not table.HasValue( network_values, selected_network ) then
+    -- Add selected_network if it's a valid network ID (not "0" or empty) and not already in list
+    if selected_network ~= "" and selected_network ~= "0" and not table.HasValue( network_values, selected_network ) then
         table.insert( network_values, selected_network )
     end
 
@@ -66,7 +64,7 @@ local function get_network_values( provided_networks, selected_network )
     return network_values
 end
 
-function HALOARMORY.Requisition.OpenPadConfigGUI( pad_ent, networks, spawn_request )
+function HALOARMORY.Requisition.OpenPadConfigGUI( pad_ent, networks, spawn_request, categories )
     if HALOARMORY.Requisition.GUI.PadConfig then
         HALOARMORY.Requisition.GUI.PadConfig:Remove()
         HALOARMORY.Requisition.GUI.PadConfig = nil
@@ -93,8 +91,37 @@ function HALOARMORY.Requisition.OpenPadConfigGUI( pad_ent, networks, spawn_reque
     local current_category = HALOARMORY.Requisition.NormalizeCategory( get_pad_value( pad_ent, "GetPadCategory", nil ) )
     local current_model = get_pad_value( pad_ent, "GetModel", HALOARMORY.Requisition.GetDefaultPadModel() )
     local selected_model = HALOARMORY.Requisition.GetPadModelConfig( current_model ) and current_model or HALOARMORY.Requisition.GetDefaultPadModel()
-    local selected_network = get_pad_value( pad_ent, "GetNetworkID", "0" )
+    local selected_network = tostring( get_pad_value( pad_ent, "GetNetworkID", "0" ) )
     local network_values = get_network_values( networks, selected_network )
+    local current_pad_id = get_pad_value( pad_ent, "GetPadID", 0 )
+
+    local pad_id_row = create_label_row( scroll, "Pad ID:" )
+    local pad_id_entry = vgui.Create( "DNumberWang", pad_id_row )
+    pad_id_entry:Dock( FILL )
+    pad_id_entry:SetMin( 0 )
+    pad_id_entry:SetMax( 999999 )
+    if creating_pad then
+        -- Generate a unique random ID for new pads
+        local function generate_unique_id()
+            local new_id = math.random( 1, 999999 )
+            for _, ent in ipairs( ents.GetAll() ) do
+                if ent.VehiclePad and isfunction( ent.GetPadID ) and ent:GetPadID() == new_id then
+                    return nil -- ID already in use
+                end
+            end
+            return new_id
+        end
+
+        local attempts = 0
+        local unique_id = nil
+        while not unique_id and attempts < 100 do
+            unique_id = generate_unique_id()
+            attempts = attempts + 1
+        end
+        pad_id_entry:SetValue( unique_id or math.random( 1, 999999 ) )
+    else
+        pad_id_entry:SetValue( current_pad_id )
+    end
 
     local name_row = create_label_row( scroll, "Device Name:" )
     local device_name = vgui.Create( "DTextEntry", name_row )
@@ -104,18 +131,52 @@ function HALOARMORY.Requisition.OpenPadConfigGUI( pad_ent, networks, spawn_reque
     local network_row = create_label_row( scroll, "Network:" )
     local network_combo = vgui.Create( "DComboBox", network_row )
     network_combo:Dock( FILL )
-    network_combo:SetValue( selected_network )
+    network_combo:AddChoice( "None" )
     for _, network_id in ipairs( network_values ) do
         network_combo:AddChoice( network_id )
+    end
+
+    local selected_network_choice = selected_network == "0" and "None" or selected_network
+
+    network_combo.OnSelect = function( _, _, value )
+        selected_network_choice = value
+    end
+
+    if selected_network == "0" then
+        network_combo:ChooseOptionID( 1 )
+    else
+        local found_idx = nil
+        for i, network_id in ipairs( network_values ) do
+            if network_id == selected_network then
+                found_idx = i + 1
+                break
+            end
+        end
+        if found_idx then
+            network_combo:ChooseOptionID( found_idx )
+        else
+            network_combo:SetValue( selected_network )
+        end
     end
 
     local category_row = create_label_row( scroll, "Category:" )
     local category_combo = vgui.Create( "DComboBox", category_row )
     category_combo:Dock( FILL )
-    category_combo:SetValue( current_category )
-    for _, category in ipairs( HALOARMORY.Requisition.GetCategories() ) do
-        category_combo:AddChoice( category.id )
+    local category_choices = categories or HALOARMORY.Requisition.GetCategories( { current_category } )
+    local category_idx = nil
+    local selected_category_choice = current_category
+
+    category_combo.OnSelect = function( _, _, value )
+        selected_category_choice = value
     end
+
+    for i, category in ipairs( category_choices ) do
+        category_combo:AddChoice( category.id )
+        if category.id == current_category then
+            category_idx = i
+        end
+    end
+    category_combo:ChooseOptionID( category_idx or 1 )
 
     local supply_row = create_label_row( scroll, "Uses Supplies:" )
     local requires_supplies = vgui.Create( "DCheckBoxLabel", supply_row )
@@ -294,10 +355,16 @@ function HALOARMORY.Requisition.OpenPadConfigGUI( pad_ent, networks, spawn_reque
     apply_button.DoClick = function()
         apply_button:SetEnabled( false )
 
+        local network_id_value = selected_network_choice
+        if network_id_value == "None" then
+            network_id_value = "0"
+        end
+
         local payload = {
+            pad_id = pad_id_entry:GetValue(),
             device_name = device_name:GetValue(),
-            network_id = network_combo:GetValue(),
-            category = category_combo:GetValue(),
+            network_id = network_id_value,
+            category = selected_category_choice,
             requires_supplies = requires_supplies:GetChecked(),
             model = selected_model,
             spawn_lights = spawn_lights:GetChecked(),
@@ -340,7 +407,5 @@ function HALOARMORY.Requisition.OpenPadConfigGUI( pad_ent, networks, spawn_reque
 end
 
 concommand.Add( "haloarmory_open_pad_menu", function()
-    HALOARMORY.Requisition.OpenPadConfigGUI( nil, nil, {
-        class_name = "halo_sp_vr_pad",
-    } )
+    HALOARMORY.VEHICLES.NETWORK.OpenNewPadConfig()
 end )

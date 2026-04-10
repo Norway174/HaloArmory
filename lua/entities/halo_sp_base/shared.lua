@@ -22,11 +22,7 @@ ENT.DeviceModel = "models/props_c17/oildrum001.mdl"
 function ENT:SetupModel()
 end
 
-// This is literally the most convoluted fucked up shit
-// First, we send the request from the client to the server.
-// Then server sends that shit back to the client.
-// To which then the client sets the Network Var.
-// All for some stupid ass table of network names.
+
 if SERVER then
     util.AddNetworkString( "HALOARMORY_Logistics_NetworkUpdate" )
 end
@@ -129,7 +125,7 @@ properties.Add( "networks_menu", {
         
     end,
     Action = function( self, ent ) -- The action to perform upon using the property ( Clientside )
-        HALOARMORY.Logistics.OpenNetworkManagerGUI()
+        RunConsoleCommand( "HALOARMORY.ManageNetworks" )
     end,
     Receive = function( self, length, ply ) -- The action to perform upon using the property ( Serverside )
     

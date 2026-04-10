@@ -5,6 +5,15 @@ HALOARMORY.VEHICLES.ADMIN_GUI = HALOARMORY.VEHICLES.ADMIN_GUI or {}
 
 local NewVehicle = true
 
+// Constants for camera and model preview
+local CAMERA_DISTANCE_MULTIPLIER = 2.5
+local CAMERA_MIN_DISTANCE = 50
+local CAMERA_FAR_Z_MULTIPLIER = 10
+local CAMERA_FAR_Z_BASE = 1000
+local MOUSE_SENSITIVITY = 0.8
+local ZOOM_SPEED_BASE = 50
+local ZOOM_SPEED_SCALING = 1000
+
 local BaseTemplateVehicle = {
     ["filename"] = "my_vehicle",
     ["entity"] = "sim_fphys_halo_warthog_chaingun",
@@ -126,17 +135,22 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenLoadoutEditor()
     
     -- Calculate the center of the model
     local mins, maxs = VehicleModelPreview.Entity:GetModelBounds()
+    if not mins or not maxs then
+        notification.AddLegacy( "Failed to load vehicle model.", NOTIFY_ERROR, 5 )
+        MainLoadoutWindow:Close()
+        return
+    end
     local center = (mins + maxs) / 2
     local distance = mins:Distance(maxs)
     
     VehicleModelPreview:SetLookAt(center)
     
     -- Initialize the camera distance and angles
-    local camDistance = distance * 2.5
+    local camDistance = distance * CAMERA_DISTANCE_MULTIPLIER
     local pitch = 15
     local yaw = 45
 
-    VehicleModelPreview.FarZ = (distance * 10 + 1000)
+    VehicleModelPreview.FarZ = (distance * CAMERA_FAR_Z_MULTIPLIER + CAMERA_FAR_Z_BASE)
     
     -- Hold to rotate
     function VehicleModelPreview:DragMousePress()
@@ -149,10 +163,10 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenLoadoutEditor()
     end
     
     function VehicleModelPreview:OnMouseWheeled(delta)
-        local speed = 50
+        local speed = ZOOM_SPEED_BASE
         // Increase the speed the higher the distance
-        speed = speed * (distance / 1000)
-        camDistance = math.Clamp(camDistance - delta * speed, 50, distance * 10)
+        speed = speed * (distance / ZOOM_SPEED_SCALING)
+        camDistance = math.Clamp(camDistance - delta * speed, CAMERA_MIN_DISTANCE, distance * CAMERA_FAR_Z_MULTIPLIER)
         //print(camDistance)
     end
 
@@ -163,8 +177,8 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenLoadoutEditor()
             local mx, my = input.GetCursorPos()
     
             -- Update the pitch and yaw angles based on mouse movement
-            yaw = yaw + ((self.PressX or mx) - mx) * 0.8 -- Invert left-right control and increase sensitivity
-            pitch = math.Clamp(pitch - ((self.PressY or my) - my) * 0.8, -89, 89) -- Normal up-down control and increase sensitivity
+            yaw = yaw + ((self.PressX or mx) - mx) * MOUSE_SENSITIVITY -- Invert left-right control and increase sensitivity
+            pitch = math.Clamp(pitch - ((self.PressY or my) - my) * MOUSE_SENSITIVITY, -89, 89) -- Normal up-down control and increase sensitivity
     
             self.PressX, self.PressY = mx, my
         end
@@ -330,7 +344,7 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenLoadoutEditor()
 
         // Update the Model Preview with the new color.
         if VehicleBeingEdited["colors"][ColorPickerDropDown:GetValue()] and IsColor( VehicleBeingEdited["colors"][ColorPickerDropDown:GetValue()] ) then
-            VehicleModelPreview:SetColor( VehicleBeingEdited["colors"][VehicleBeingEdited["defaults"]["color"]] )
+            VehicleModelPreview:SetColor( VehicleBeingEdited["colors"][ColorPickerDropDown:GetValue()] )
         end
 
         //ColorPickerDropDown:Clear()
@@ -428,12 +442,14 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenLoadoutEditor()
             BodygroupTileLayout:SetSpaceX( 2 )
             BodygroupTileLayout:SetSpaceY( 2 )
 
-            local BodyGroup_ID = VehicleModelPreview.Entity:FindBodygroupByName( key )
+            local BodyGroup_ID = VehicleModelPreview.Entity and VehicleModelPreview.Entity:FindBodygroupByName( key ) or -1
+
+            if BodyGroup_ID < 0 then continue end
 
             --print( "Key;", key, "Value:", value, "ID:", BodyGroup_ID )
             --PrintTable( value )
 
-            for i = 0, #value - 1 do
+            for i = 1, #value do
 
                 local BodygroupSubPanel = vgui.Create("DButton", BodygroupTileLayout)
                 local size = BodygroupTileLayout:GetBaseSize()
@@ -445,18 +461,18 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenLoadoutEditor()
                 BodygroupSubPanel.Paint = function( self, w, h )
                     draw.RoundedBox( 0, 0, 0, w, h, Color( 0, 0, 0, 187) )
 
-                    if VehicleModelPreview.Entity:GetBodygroup( BodyGroup_ID ) == value[i + 1] then
+                    if VehicleModelPreview.Entity:GetBodygroup( BodyGroup_ID ) == value[i] then
                         draw.RoundedBox( 0, 1, 1, w-2, h-2, Color( 0, 255, 0, 70) )
                     end
 
-                    draw.SimpleText( value[i + 1], "DermaDefault", size / 2, size / 2, Color( 255, 255, 255, 255 ), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER )
+                    draw.SimpleText( value[i], "DermaDefault", size / 2, size / 2, Color( 255, 255, 255, 255 ), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER )
                 end
 
                 local DoClickBackup = BodygroupSubPanel.DoClick
                 BodygroupSubPanel.DoClick = function( self )
                     DoClickBackup( self )
 
-                    VehicleModelPreview.Entity:SetBodygroup( BodyGroup_ID, value[i + 1] )
+                    VehicleModelPreview.Entity:SetBodygroup( BodyGroup_ID, value[i] )
                 end
 
             end
@@ -601,20 +617,26 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenLoadoutEditor()
             end
 
             AIColor_Box.DoClick = function()
-                local ColorPickerWindow = vgui.Create( "DFrame" )
-                ColorPickerWindow:SetSize( 220, 280 )
-                ColorPickerWindow:Center()
-                ColorPickerWindow:SetTitle( "Vehicle Color Picker" )
-                ColorPickerWindow:SetVisible( true )
-                ColorPickerWindow:SetDraggable( true )
-                ColorPickerWindow:ShowCloseButton( true )
-                ColorPickerWindow:MakePopup()
+                local originalColor = VehicleBeingEdited["colors"][key] or Color( 255, 255, 255)
+                local colorApplied = false
+                
+                // Ensure the model preview shows the correct color when opening
+                VehicleModelPreview:SetColor( originalColor )
+                
+                local colorPickerWindow = vgui.Create( "DFrame" )
+                colorPickerWindow:SetSize( 220, 280 )
+                colorPickerWindow:Center()
+                colorPickerWindow:SetTitle( "Vehicle Color Picker" )
+                colorPickerWindow:SetVisible( true )
+                colorPickerWindow:SetDraggable( true )
+                colorPickerWindow:ShowCloseButton( true )
+                colorPickerWindow:MakePopup()
 
-                local colorPicker = vgui.Create( "DColorMixer", ColorPickerWindow )
+                local colorPicker = vgui.Create( "DColorMixer", colorPickerWindow )
                 colorPicker:SetPalette( true )
                 colorPicker:SetAlphaBar( false )
                 colorPicker:SetWangs( true )
-                colorPicker:SetColor( VehicleBeingEdited["colors"][key] or Color( 255, 255, 255) )
+                colorPicker:SetColor( originalColor )
                 colorPicker:SetPos( 10, 35 )
                 colorPicker:SetSize( 200, 200 )
                 colorPicker:SetAlpha( 255 )
@@ -624,23 +646,31 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenLoadoutEditor()
                     VehicleModelPreview:SetColor( newColor )
                 end
                 
-                local colorSaveButton = vgui.Create( "DButton", ColorPickerWindow )
-                colorSaveButton:SetText( "Save Color" )
-                colorSaveButton:SetPos( 10, 240 )
-                colorSaveButton:SetSize( 200, 30 )
-                colorSaveButton.DoClick = function()
-
+                local colorApplyButton = vgui.Create( "DButton", colorPickerWindow )
+                colorApplyButton:SetText( "Apply" )
+                colorApplyButton:SetPos( 10, 240 )
+                colorApplyButton:SetSize( 200, 30 )
+                colorApplyButton.DoClick = function()
                     local selectedColor = colorPicker:GetColor()
-
                     selectedColor = Color( selectedColor.r, selectedColor.g, selectedColor.b, 255 )
                     VehicleBeingEdited["colors"][key] = selectedColor
-                    
+                    colorApplied = true
                     RefreshPreviewControls()
-                    ColorPickerWindow:Close()
-
+                    colorPickerWindow:Close()
                 end
 
-                ColorPickerWindow.OnClose = function()
+                // Close and reset when window loses focus
+                colorPickerWindow.OnFocusChanged = function( self, gained )
+                    if not gained and not colorApplied then
+                        VehicleModelPreview:SetColor( originalColor )
+                        self:Close()
+                    end
+                end
+
+                colorPickerWindow.OnClose = function()
+                    if not colorApplied then
+                        VehicleModelPreview:SetColor( originalColor )
+                    end
                     RefreshPreviewControls()
                 end
 
@@ -810,7 +840,6 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenLoadoutEditor()
     for key, value in pairs( VehicleBeingEdited["bodygroups"] ) do
         if not ListOfBodygroups[key] then
             VehicleBeingEdited["bodygroups"][key] = nil
-            print( "Removed bodygroup:", key )
         end
     end
 
@@ -920,565 +949,998 @@ function HALOARMORY.VEHICLES.ADMIN_GUI.OpenLoadoutEditor()
 
 end
 
-
-
-function HALOARMORY.VEHICLES.ADMIN_GUI.OpenVehicleEditor( The_Vehicle )
-
-    if HALOARMORY.VEHICLES.ADMIN_GUI.MainFrame then
-        HALOARMORY.VEHICLES.ADMIN_GUI.MainFrame:Remove()
-        HALOARMORY.VEHICLES.ADMIN_GUI.MainFrame = nil
-    end
-
-    if HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor then
-        HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor:Remove()
-        HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor = nil
-    end
-
-    The_Vehicle = HALOARMORY.Requisition.NormalizeVehicleTable( table.Copy( The_Vehicle or VehicleBeingEdited ) )
-
-    VehicleBeingEdited = The_Vehicle
-
-    local MainFrame = vgui.Create("DFrame")
-    MainFrame:SetSize(360, 470)
-    MainFrame:Center()
-    MainFrame:SetTitle("HALOARMORY.VEHICLES.EDITOR")
-    MainFrame:MakePopup()
-
-    HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor = MainFrame
-
-    MainFrame.OnClose = function()
-        HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor = nil
-    end
-
-    local UpdateAndCheckVehicleClass
-    
-    local LabelWith = 75
-
-    // VEHICLE FILENAME
-    local VehicleFileNameRow = vgui.Create("DPanel", MainFrame)
-    VehicleFileNameRow:Dock( TOP )
-    VehicleFileNameRow:DockMargin( 0, 0, 2, 5 )
-    VehicleFileNameRow.Paint = function( self, w, h )
-        --draw.RoundedBox( 0, 0, 0, w, h, Color( 0, 0, 0, 255 ) )
-    end
-
-    local VehicleFileNameLabel = vgui.Create("DLabel", VehicleFileNameRow)
-    VehicleFileNameLabel:Dock( LEFT )
-    VehicleFileNameLabel:SetWide( LabelWith )
-    VehicleFileNameLabel:SetText("Filename:" )
-
-    local VehicleFileNameTextEntry = vgui.Create("DTextEntry", VehicleFileNameRow)
-    VehicleFileNameTextEntry:Dock( FILL )
-    VehicleFileNameTextEntry:SetValue( tostring( VehicleBeingEdited["filename"] ) )
-
-    if NewVehicle then
-        VehicleBeingEdited["old_filename"] = nil
-    else
-        VehicleBeingEdited["old_filename"] = VehicleBeingEdited["filename"]
-    end
-    
-
-    // DIVIDER
-    local Divider = vgui.Create("DPanel", MainFrame)
-    Divider:Dock( TOP )
-    Divider:DockMargin( 0, 0, 2, 5 )
-    Divider:SetTall( 1 )
-    Divider.Paint = function( self, w, h )
-        draw.RoundedBox( 0, 0, 0, w, h, Color( 255, 255, 255, 40) )
-    end
-
-    // VEHICLE ENTITY CLASS
-    local VehicleClassRow = vgui.Create("DPanel", MainFrame)
-    VehicleClassRow:Dock( TOP )
-    VehicleClassRow:DockMargin( 0, 0, 2, 5 )
-    VehicleClassRow.Paint = function( self, w, h )
-        --draw.RoundedBox( 0, 0, 0, w, h, Color( 0, 0, 0, 255 ) )
-    end
-
-    local VehicleClassLabel = vgui.Create("DLabel", VehicleClassRow)
-    VehicleClassLabel:Dock( LEFT )
-    VehicleClassLabel:SetWide( LabelWith )
-    VehicleClassLabel:SetText("Entity Class:" )
-
-    local VehicleClassTextEntry = vgui.Create("DTextEntry", VehicleClassRow)
-    VehicleClassTextEntry:Dock( FILL )
-    VehicleClassTextEntry:SetValue( tostring( VehicleBeingEdited["entity"] ) )
-
-
-    // VEHICLE NAME
-    local VehicleNameRow = vgui.Create("DPanel", MainFrame)
-    VehicleNameRow:Dock( TOP )
-    VehicleNameRow:DockMargin( 0, 0, 2, 5 )
-    VehicleNameRow.Paint = function( self, w, h )
-        --draw.RoundedBox( 0, 0, 0, w, h, Color( 0, 0, 0, 255 ) )
-    end
-
-    local VehicleNameLabel = vgui.Create("DLabel", VehicleNameRow)
-    VehicleNameLabel:Dock( LEFT )
-    VehicleNameLabel:SetWide( LabelWith )
-    VehicleNameLabel:SetText("Vehicle Name:" )
-
-    local VehicleNameTextEntry = vgui.Create("DTextEntry", VehicleNameRow)
-    VehicleNameTextEntry:Dock( FILL )
-    VehicleNameTextEntry:SetValue( tostring( VehicleBeingEdited["name"] ) )
-
-    local VehicleClassButton = vgui.Create("DButton", VehicleNameRow)
-    VehicleClassButton:Dock( RIGHT )
-    VehicleClassButton:SetWide( 25 )
-    VehicleClassButton:SetText("")
-    VehicleClassButton:SetIcon("icon16/car.png")
-
-    // VEHICLE MODEL
-    -- local VehicleModelRow = vgui.Create("DPanel", MainFrame)
-    -- VehicleModelRow:Dock( TOP )
-    -- VehicleModelRow:DockMargin( 0, 0, 2, 5 )
-    -- VehicleModelRow.Paint = function( self, w, h )
-    --     --draw.RoundedBox( 0, 0, 0, w, h, Color( 0, 0, 0, 255 ) )
-    -- end
-
-    -- local VehicleModelLabel = vgui.Create("DLabel", VehicleModelRow)
-    -- VehicleModelLabel:Dock( LEFT )
-    -- VehicleModelLabel:SetWide( LabelWith )
-    -- VehicleModelLabel:SetText("Model:" )
-
-    -- local VehicleModelTextEntry = vgui.Create("DTextEntry", VehicleModelRow)
-    -- VehicleModelTextEntry:Dock( FILL )
-    -- VehicleModelTextEntry:SetValue( tostring(The_Vehicle.Model or "") )
-
-    // VEHICLE COST
-    local VehicleCostRow = vgui.Create("DPanel", MainFrame)
-    VehicleCostRow:Dock( TOP )
-    VehicleCostRow:DockMargin( 0, 0, 2, 5 )
-    VehicleCostRow.Paint = function( self, w, h )
-        --draw.RoundedBox( 0, 0, 0, w, h, Color( 0, 0, 0, 255 ) )
-    end
-
-    local VehicleCostLabel = vgui.Create("DLabel", VehicleCostRow)
-    VehicleCostLabel:Dock( LEFT )
-    VehicleCostLabel:SetWide( LabelWith )
-    VehicleCostLabel:SetText("Cost:" )
-
-    local VehicleCostTextEntry = vgui.Create("DNumberWang", VehicleCostRow)
-    VehicleCostTextEntry:Dock( FILL )
-    VehicleCostTextEntry:SetMax( 2147483647 )
-    VehicleCostTextEntry:SetValue( tonumber( VehicleBeingEdited["cost"] ) )
-
-
-    // VEHICLE CATEGORIES
-    local CategoryHeight = math.max( 90, 26 + ( #HALOARMORY.Requisition.GetCategories() * 22 ) )
-
-    local VehicleCategoryRow = vgui.Create("DPanel", MainFrame)
-    VehicleCategoryRow:Dock( TOP )
-    VehicleCategoryRow:DockMargin( 0, 0, 2, 5 )
-    VehicleCategoryRow:SetTall( CategoryHeight )
-    VehicleCategoryRow.Paint = function( self, w, h )
-        --draw.RoundedBox( 0, 0, 0, w, h, Color( 0, 0, 0, 255 ) )
-    end
-
-    local VehicleCategoryLabel = vgui.Create("DLabel", VehicleCategoryRow)
-    VehicleCategoryLabel:Dock( LEFT )
-    VehicleCategoryLabel:SetWide( LabelWith )
-    VehicleCategoryLabel:SetText("Categories:" )
-
-    local VehicleCategoryScroll = vgui.Create("DScrollPanel", VehicleCategoryRow)
-    VehicleCategoryScroll:Dock( FILL )
-
-    for _, category in ipairs( HALOARMORY.Requisition.GetCategories() ) do
-        local CategoryOption = vgui.Create("DCheckBoxLabel", VehicleCategoryScroll)
-        CategoryOption:Dock( TOP )
-        CategoryOption:SetText( category.id )
-        CategoryOption:SetValue( VehicleBeingEdited["categories"][category.id] and 1 or 0 )
-        CategoryOption:SizeToContents()
-
-        CategoryOption.OnChange = function( self )
-            VehicleBeingEdited["categories"][category.id] = self:GetChecked() or nil
-            UpdateAndCheckVehicleClass()
-        end
-    end
-
-    // VEHICLE EDIT Loadouts Button
-    local VehicleLoadoutsRow = vgui.Create("DPanel", MainFrame)
-    VehicleLoadoutsRow:Dock( TOP )
-    VehicleLoadoutsRow:SetTall( 35 )
-    VehicleLoadoutsRow:DockMargin( 0, 15, 2, 0 )
-    VehicleLoadoutsRow.Paint = function( self, w, h )
-        --draw.RoundedBox( 0, 0, 0, w, h, Color( 0, 0, 0, 255 ) )
-    end
-
-    local VehicleLoadoutsButton = vgui.Create("DButton", VehicleLoadoutsRow)
-    VehicleLoadoutsButton:Dock( FILL )
-    VehicleLoadoutsButton:SetText("Edit Loadouts...")
-    VehicleLoadoutsButton:SetIcon("icon16/bricks.png")
-
-    VehicleLoadoutsButton:SetDisabled( true )
-
-    VehicleLoadoutsButton.DoClick = function()
-
-        HALOARMORY.VEHICLES.ADMIN_GUI.OpenLoadoutEditor()
-
-    end
-
-    // VEHICLE SET ACCESS Button
-    local VehicleSetAccessRow = vgui.Create("DPanel", MainFrame)
-    VehicleSetAccessRow:Dock( TOP )
-    VehicleSetAccessRow:SetTall( 35 )
-    VehicleSetAccessRow:DockMargin( 0, 10, 2, 0 )
-    VehicleSetAccessRow.Paint = function( self, w, h )
-        --draw.RoundedBox( 0, 0, 0, w, h, Color( 0, 0, 0, 255 ) )
-    end
-
-    local VehicleSetAccessButton = vgui.Create("DButton", VehicleSetAccessRow)
-    VehicleSetAccessButton:Dock( FILL )
-    VehicleSetAccessButton:SetText("Set Access...")
-    VehicleSetAccessButton:SetIcon("icon16/user.png")
-
-    VehicleSetAccessButton.DoClick = function()
-
-        // Open the access editor.
-        HALOARMORY.INTERFACE.ACCESS.Open( The_Vehicle.AccessList, function( NewAccessList ) 
-        
-            The_Vehicle.AccessList = NewAccessList
-
-            --PrintTable( The_Vehicle.AccessList )
-
-        end, "Authorization")
-
-    end
-
-
-    // VEHICLE SAVE Button
-    local VehicleSaveRow = vgui.Create("DPanel", MainFrame)
-    VehicleSaveRow:Dock( BOTTOM )
-    VehicleSaveRow:SetTall( 35 )
-    VehicleSaveRow:DockMargin( 0, 0, 2, 5 )
-    VehicleSaveRow.Paint = function( self, w, h )
-        --draw.RoundedBox( 0, 0, 0, w, h, Color( 0, 0, 0, 255 ) )
-    end
-
-    VehicleSaveRow:InvalidateParent( true )
-
-    local VehicleSaveButton = vgui.Create("DButton", VehicleSaveRow)
-    VehicleSaveButton:Dock( LEFT )
-    VehicleSaveButton:SetWide( VehicleSaveRow:GetWide() / 2 )
-    VehicleSaveButton:SetText("Save")
-    VehicleSaveButton:SetIcon("icon16/disk.png")
-
-    VehicleSaveButton:SetDisabled( true )
-
-    VehicleSaveButton.DoClick = function()
-
-        --print( "Done! Save this vehicle:" )
-        --PrintTable( VehicleBeingEdited )
-
-        HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor:Remove()
-        HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor = nil
-
-        HALOARMORY.VEHICLES.ADMIN_GUI.VehicleList = nil
-
-        net.Start("HALOARMORY.VEHICLES.ADMIN")
-            net.WriteString("SAVEVEHICLE")
-            net.WriteTable( VehicleBeingEdited )
-        net.SendToServer()
-
-        HALOARMORY.VEHICLES.ADMIN_GUI.OpenGUI()
-
-        VehicleBeingEdited = NewTemplateVehicle()
-
-    end
-
-    local VehicleCancelButton = vgui.Create("DButton", VehicleSaveRow)
-    VehicleCancelButton:Dock( RIGHT )
-    VehicleCancelButton:SetWide( VehicleSaveRow:GetWide() / 2 )
-    VehicleCancelButton:SetText("Cancel")
-    VehicleCancelButton:SetIcon("icon16/cancel.png")
-
-    VehicleCancelButton.DoClick = function()
-
-        HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor:Remove()
-        HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor = nil
-
-        HALOARMORY.VEHICLES.ADMIN_GUI.OpenGUI()
-
-    end
-
-    
-    // DIVIDER 2
-    local Divider2 = vgui.Create("DPanel", MainFrame)
-    Divider2:Dock( BOTTOM )
-    Divider2:DockMargin( 0, 0, 2, 5 )
-    Divider2:SetTall( 1 )
-    Divider2.Paint = function( self, w, h )
-        draw.RoundedBox( 0, 0, 0, w, h, Color( 255, 255, 255, 40) )
-    end
-
-
-
-
-    function UpdateAndCheckVehicleClass()
-        local VehicleClass = VehicleClassTextEntry:GetValue()
-
-        local Vehicle_Ent, VehicleModel, VehiclePrintName = HALOARMORY.Requisition.GetModelAndNameFromVehicle( VehicleBeingEdited["entity"] )
-
-        if not Vehicle_Ent then
-            VehicleClassButton:SetDisabled( true )
-            VehicleSaveButton:SetDisabled( true )
-            VehicleLoadoutsButton:SetDisabled( true )
-        else
-            VehicleClassButton:SetDisabled( false )
-            VehicleSaveButton:SetDisabled( false )
-            VehicleLoadoutsButton:SetDisabled( false )
-        end
-
-        local Filaneme = VehicleFileNameTextEntry:GetValue() ~= ""
-        local VehicleName = VehicleNameTextEntry:GetValue() ~= ""
-        local VehicleCost = VehicleCostTextEntry:GetValue() ~= ""
-
-        if Filaneme and VehicleName and VehicleCost then
-            --VehicleSaveButton:SetDisabled( false )
-        else
-            VehicleSaveButton:SetDisabled( true )
-        end
-
-    end
-
-
-    local CursorPosSaved = VehicleFileNameTextEntry:GetCaretPos()
-    VehicleFileNameTextEntry.OnChange = function( self )
-        local newName = self:GetValue():lower():gsub( "[^%w_]", "_" )
-
-        CursorPosSaved = self:GetCaretPos()
-        self:SetText( newName )
-        self:SetCaretPos( CursorPosSaved )
-
-        VehicleBeingEdited["filename"] = newName
-
-        UpdateAndCheckVehicleClass()
-    end
-
-    // Vehicle Class button
-    VehicleClassButton.DoClick = function()
-
-        local VehicleClass = VehicleClassTextEntry:GetValue()
-        local Vehicle_Ent, VehicleModel, VehiclePrintName = HALOARMORY.Requisition.GetModelAndNameFromVehicle( VehicleClass )
-
-        if VehiclePrintName then
-            VehicleNameTextEntry:SetValue( tostring( VehiclePrintName ) )
-
-            VehicleNameTextEntry:OnChange()
-        end
-
-        UpdateAndCheckVehicleClass()
-
-    end
-
-    VehicleClassTextEntry.OnChange = function( self )
-
-        local VehicleClass = self:GetValue()
-        VehicleBeingEdited["entity"] = VehicleClass
-
-        UpdateAndCheckVehicleClass()
-
-    end
-
-    VehicleNameTextEntry.OnChange = function( self )
-
-        local VehicleName = self:GetValue()
-        VehicleBeingEdited["name"] = VehicleName
-
-        UpdateAndCheckVehicleClass()
-
-    end
-
-    VehicleCostTextEntry.OnChange = function( self )
-
-        local VehicleCost = VehicleCostTextEntry:GetValue()
-        VehicleBeingEdited["cost"] = VehicleCost
-
-        UpdateAndCheckVehicleClass()
-
-    end
-
-    UpdateAndCheckVehicleClass()
-
+HALOARMORY.VEHICLES.ADMIN_GUI.NewTemplateVehicle = NewTemplateVehicle
+HALOARMORY.VEHICLES.ADMIN_GUI.GetVehicleBeingEdited = function()
+    return VehicleBeingEdited
+end
+HALOARMORY.VEHICLES.ADMIN_GUI.SetVehicleBeingEdited = function( vehicle_table )
+    VehicleBeingEdited = vehicle_table
+end
+HALOARMORY.VEHICLES.ADMIN_GUI.GetNewVehicle = function()
+    return NewVehicle
+end
+HALOARMORY.VEHICLES.ADMIN_GUI.SetNewVehicle = function( is_new_vehicle )
+    NewVehicle = is_new_vehicle == true
 end
 
+local GUI = HALOARMORY.VEHICLES.ADMIN_GUI
 
-function HALOARMORY.VEHICLES.ADMIN_GUI.OpenGUI( VehicleList )
+local function new_template_vehicle()
+    return GUI.NewTemplateVehicle()
+end
 
-    if not CAMI.PlayerHasAccess( LocalPlayer(), "HALOARMORY.Vehicle Editor" ) then
+local function get_vehicle_being_edited()
+    return GUI.GetVehicleBeingEdited()
+end
+
+local function set_vehicle_being_edited( vehicle_table )
+    GUI.SetVehicleBeingEdited( vehicle_table )
+end
+
+local function get_new_vehicle()
+    return GUI.GetNewVehicle()
+end
+
+local function set_new_vehicle( is_new_vehicle )
+    GUI.SetNewVehicle( is_new_vehicle )
+end
+
+local function sort_strings( values )
+    table.sort( values, function( a, b )
+        return tostring( a ) < tostring( b )
+    end )
+end
+
+local function sanitize_vehicle_filename( filename )
+    return tostring( filename or "" ):lower():gsub( "[^%w_]", "_" )
+end
+
+local function normalize_vehicle_list( vehicle_list )
+    local normalized_list = {}
+
+    for vehicle_key, vehicle_table in pairs( vehicle_list or {} ) do
+        if not istable( vehicle_table ) then continue end
+
+        local normalized = HALOARMORY.Requisition.NormalizeVehicleTable( table.Copy( vehicle_table ) )
+        normalized.filename = sanitize_vehicle_filename( normalized.filename ~= "" and normalized.filename or vehicle_key )
+        normalized_list[normalized.filename] = normalized
+    end
+
+    return normalized_list
+end
+
+local function sorted_vehicle_keys( vehicle_list )
+    local keys = {}
+
+    for vehicle_key in pairs( vehicle_list or {} ) do
+        table.insert( keys, vehicle_key )
+    end
+
+    sort_strings( keys )
+
+    return keys
+end
+
+local function get_vehicle_categories( vehicle_table )
+    vehicle_table = HALOARMORY.Requisition.NormalizeVehicleTable( table.Copy( vehicle_table or {} ) )
+
+    local categories = {}
+    for category_id, enabled in pairs( vehicle_table.categories or {} ) do
+        if enabled then
+            table.insert( categories, HALOARMORY.Requisition.NormalizeCategory( category_id ) )
+        end
+    end
+
+    if #categories <= 0 then
+        table.insert( categories, HALOARMORY.Requisition.GetDefaultCategory() )
+    end
+
+    sort_strings( categories )
+
+    return categories
+end
+
+local function count_bodygroups( vehicle_table )
+    local count = 0
+
+    for _ in pairs( vehicle_table.bodygroups or {} ) do
+        count = count + 1
+    end
+
+    return count
+end
+
+local function serialize_vehicle( vehicle_table )
+    return util.TableToJSON( HALOARMORY.Requisition.NormalizeVehicleTable( table.Copy( vehicle_table or {} ) ), true ) or ""
+end
+
+local function create_editor_row( parent, label_text, row_height )
+    local row = vgui.Create( "DPanel", parent )
+    row:Dock( TOP )
+    row:SetTall( row_height or 28 )
+    row:DockMargin( 8, 0, 8, 6 )
+    row.Paint = nil
+
+    local label = vgui.Create( "DLabel", row )
+    label:Dock( LEFT )
+    label:SetWide( 110 )
+    label:SetText( label_text )
+
+    return row
+end
+
+function GUI.OpenVehicleEditor( vehicle_table )
+    local normalized = HALOARMORY.Requisition.NormalizeVehicleTable( table.Copy( vehicle_table or get_vehicle_being_edited() or new_template_vehicle() ) )
+    local is_new_vehicle = vehicle_table == nil and get_new_vehicle() or not istable( vehicle_table )
+
+    normalized.filename = sanitize_vehicle_filename( normalized.filename )
+    set_vehicle_being_edited( normalized )
+
+    GUI.PendingEditVehicle = table.Copy( normalized )
+    GUI.PendingSelection = normalized.filename
+    GUI.PendingStartEdit = true
+    GUI.PendingNewVehicle = is_new_vehicle
+
+    if IsValid( GUI.MainFrame ) and isfunction( GUI.MainFrame.LoadVehicleIntoEditor ) then
+        GUI.MainFrame:LoadVehicleIntoEditor( normalized, {
+            is_new = is_new_vehicle,
+            source_filename = normalized.old_filename or normalized.filename,
+            force = true,
+        } )
+        GUI.MainFrame:Show()
+        GUI.MainFrame:MakePopup()
+        return
+    end
+
+    GUI.OpenGUI( GUI.VehicleList )
+end
+
+function GUI.OpenGUI( vehicle_list )
+    local has_access = true
+    if CAMI then
+        has_access = CAMI.PlayerHasAccess( LocalPlayer(), "HALOARMORY.Vehicle Editor" )
+    elseif IsValid( LocalPlayer() ) then
+        has_access = LocalPlayer():IsSuperAdmin()
+    end
+
+    if not has_access then
         chat.AddText( Color( 255, 0, 0 ), "You do not have access to this command!" )
         return "No Access!"
     end
 
-    if HALOARMORY.VEHICLES.ADMIN_GUI.MainFrame then
-        HALOARMORY.VEHICLES.ADMIN_GUI.MainFrame:Remove()
-        HALOARMORY.VEHICLES.ADMIN_GUI.MainFrame = nil
+    if IsValid( GUI.MainFrame ) then
+        GUI.MainFrame:Remove()
+        GUI.MainFrame = nil
     end
 
-    //VehicleList = VehicleList or {}
+    local frame = vgui.Create( "DFrame" )
+    frame:SetSize( 1280, 760 )
+    frame:Center()
+    frame:SetTitle( "HALOARMORY.VEHICLES.EDITOR" )
+    frame:SetSizable( true )
+    frame:SetMinWidth( 1100 )
+    frame:SetMinHeight( 640 )
+    frame:MakePopup()
 
-    local MainFrame = vgui.Create("DFrame")
-    MainFrame:SetSize(300, 400)
-    MainFrame:Center()
-    MainFrame:SetTitle("HALOARMORY.VEHICLES.SELECTOR")
-    MainFrame:MakePopup()
+    GUI.MainFrame = frame
+    GUI.MainFrameEditor = frame
 
-    MainFrame.OnClose = function()
-        HALOARMORY.VEHICLES.ADMIN_GUI.MainFrame = nil
-        net.Start("HALOARMORY.VEHICLES.ADMIN")
-            net.WriteString("MENUCLOSED")
+    frame.OnClose = function()
+        GUI.MainFrame = nil
+        GUI.MainFrameEditor = nil
+
+        net.Start( "HALOARMORY.VEHICLES.ADMIN" )
+            net.WriteString( "MENUCLOSED" )
         net.SendToServer()
     end
 
-    HALOARMORY.VEHICLES.ADMIN_GUI.MainFrame = MainFrame
+    if not istable( vehicle_list ) then
+        local loading_label = vgui.Create( "DLabel", frame )
+        loading_label:Dock( FILL )
+        loading_label:SetContentAlignment( 5 )
+        loading_label:SetText( "Loading vehicles..." )
 
-    if VehicleList == nil or not istable(VehicleList) then
-        // Add a DLabel saying "Loading"
-        local LoadingLabel = vgui.Create("DLabel", MainFrame)
-        LoadingLabel:Dock( FILL )
-        LoadingLabel:SetContentAlignment( 5 )
-        LoadingLabel:SetText("Loading...")
-
-        // Send net message to get all the vehicles.
-        net.Start("HALOARMORY.VEHICLES.ADMIN")
-            net.WriteString("GETVEHICLES")
+        net.Start( "HALOARMORY.VEHICLES.ADMIN" )
+            net.WriteString( "GETVEHICLES" )
         net.SendToServer()
 
         return
-
     end
 
-    // List of all the vehicles on the left.
-    local VehicleListScroll = vgui.Create("DScrollPanel", MainFrame)
-    VehicleListScroll:Dock( FILL )
-    --VehicleListScroll:SetWide( 250 )
+    vehicle_list = normalize_vehicle_list( vehicle_list )
+    GUI.VehicleList = vehicle_list
+    HALOARMORY.VEHICLES.LIST = table.Copy( vehicle_list )
 
-    HALOARMORY.VEHICLES.ADMIN_GUI.VehicleListScroll = VehicleListScroll
+    local selected_filename = GUI.PendingSelection
+    local active_vehicle_key = nil
+    local editor_baseline = nil
+    local vehicle_list_view
+    local vehicle_rows = {}
+    local right_panel
+    local category_list
+    local remove_category_button
+    local save_button
+    local loadout_button
+    local delete_button
+    local dirty_status_label
+    local validation_label
+    local current_category_selection = nil
+    local refresh_list_view
+    local load_vehicle_into_editor
 
-    // Add a panel to add a new vehicle.
-    local AddVehiclePanel = vgui.Create("DPanel", VehicleListScroll)
-    AddVehiclePanel:Dock( TOP )
-    AddVehiclePanel:DockMargin( 0, 0, 2, 5 )
-    AddVehiclePanel:SetSize( 0, 30 )
-
-    local AddVehicleButton = vgui.Create("DButton", AddVehiclePanel)
-    AddVehicleButton:Dock( FILL )
-    AddVehicleButton:SetText("Add Vehicle")
-    AddVehicleButton:SetIcon("icon16/add.png")
-
-    AddVehicleButton.DoClick = function()
-
-        NewVehicle = true
-
-        VehicleBeingEdited = NewTemplateVehicle()
-
-        HALOARMORY.VEHICLES.ADMIN_GUI.OpenVehicleEditor()
-
+    local function current_vehicle()
+        return get_vehicle_being_edited()
     end
 
-    for key, value in pairs(VehicleList) do
-        
-        local VehiclePanel = vgui.Create("DPanel", VehicleListScroll)
-        VehiclePanel:Dock( TOP )
-        VehiclePanel:DockMargin( 0, 0, 2, 5 )
-        VehiclePanel:SetSize( 0, 30 )
+    local function editor_dirty()
+        local vehicle_table = current_vehicle()
+        if not vehicle_table or not editor_baseline then return false end
 
-        local VehicleEditButton = vgui.Create("DButton", VehiclePanel)
-        VehicleEditButton:Dock( FILL )
-        VehicleEditButton:SetText( tostring( value ) )
-        VehicleEditButton:SetIcon("icon16/pencil.png")
+        return serialize_vehicle( vehicle_table ) ~= editor_baseline
+    end
 
-        VehicleEditButton.DoClick = function()
+    local function validate_vehicle()
+        local vehicle_table = current_vehicle() or {}
+        local filename = sanitize_vehicle_filename( vehicle_table.filename )
+        local name = string.Trim( tostring( vehicle_table.name or "" ) )
+        local cost = tonumber( vehicle_table.cost )
+        local vehicle_ent, _, vehicle_print_name = HALOARMORY.Requisition.GetModelAndNameFromVehicle( vehicle_table.entity or "" )
 
-            --HALOARMORY.VEHICLES.ADMIN_GUI.OpenVehicleEditor( value )
+        if filename == "" then return false, "Filename is required." end
+        if name == "" then return false, "Vehicle name is required." end
+        if cost == nil then return false, "Vehicle cost must be numeric." end
+        if not vehicle_ent then return false, "Entity class was not found." end
 
-            NewVehicle = false
+        return true, "Entity resolved as " .. tostring( vehicle_print_name or filename ) .. "."
+    end
 
-            net.Start("HALOARMORY.VEHICLES.ADMIN")
-                net.WriteString("EDITVEHICLE")
-                net.WriteString( value )
-            net.SendToServer()
+    local function update_status()
+        local vehicle_table = current_vehicle()
+        if not IsValid( dirty_status_label ) or not IsValid( validation_label ) or not vehicle_table then return end
 
+        dirty_status_label:SetText( editor_dirty() and "Unsaved changes" or "Up to date" )
+
+        local can_save, validation_text = validate_vehicle()
+        validation_label:SetText( validation_text )
+        validation_label:SetTextColor( can_save and Color( 80, 170, 80 ) or Color( 210, 120, 80 ) )
+
+        if IsValid( save_button ) then
+            save_button:SetEnabled( can_save )
         end
 
-        local VehicleRemoveButton = vgui.Create("DButton", VehiclePanel)
-        VehicleRemoveButton:Dock( RIGHT )
-        VehicleRemoveButton:SetText("")
-        VehicleRemoveButton:SetIcon("icon16/delete.png")
-        VehicleRemoveButton:SetWide( 30 )
-
-        VehicleRemoveButton.DoClick = function()
-
-            --HALOARMORY.VEHICLES.ADMIN_GUI.RemoveVehicle( value )
-
-            net.Start("HALOARMORY.VEHICLES.ADMIN")
-                net.WriteString("REMOVEVEHICLE")
-                net.WriteString( value )
-            net.SendToServer()
-
+        if IsValid( loadout_button ) then
+            loadout_button:SetEnabled( select( 1, HALOARMORY.Requisition.GetModelAndNameFromVehicle( vehicle_table.entity or "" ) ) ~= nil )
         end
 
+        if IsValid( delete_button ) then
+            delete_button:SetEnabled( not get_new_vehicle() and active_vehicle_key ~= nil )
+        end
 
-        //print( value )
-
+        if IsValid( remove_category_button ) then
+            remove_category_button:SetEnabled( current_category_selection ~= nil )
+        end
     end
 
+    local function confirm_discard( on_accept )
+        if not isfunction( on_accept ) then return end
 
-end
+        if not editor_dirty() then
+            on_accept()
+            return
+        end
 
-
-net.Receive("HALOARMORY.VEHICLES.ADMIN", function( len )
-
-    local Type = net.ReadString()
-
-    if Type == "GETVEHICLES" then
-
-        local VehicleList = net.ReadTable()
-
-        HALOARMORY.VEHICLES.ADMIN_GUI.VehicleList = VehicleList
-
-        HALOARMORY.VEHICLES.ADMIN_GUI.OpenGUI( VehicleList )
-
-    elseif Type == "EDITVEHICLE" then
-
-        --local VehicleName = net.ReadString()
-        local VehicleTable = net.ReadTable()
-
-        NewVehicle = false
-
-        HALOARMORY.VEHICLES.ADMIN_GUI.OpenVehicleEditor( VehicleTable )
-
+        Derma_Query(
+            "Discard the current unsaved vehicle changes?",
+            "Unsaved Changes",
+            "Discard",
+            on_accept,
+            "Keep Editing"
+        )
     end
 
-end)
+    local function select_vehicle_row( vehicle_key )
+        if not IsValid( vehicle_list_view ) then return end
 
+        local line = vehicle_rows[vehicle_key]
+        if not IsValid( line ) then return end
 
-if CLIENT then
-    concommand.Add("HALOARMORY.ManageVehicles", HALOARMORY.VEHICLES.ADMIN_GUI.OpenGUI )
+        vehicle_list_view:ClearSelection()
+        line:SetSelected( true )
+        vehicle_list_view:OnRowSelected( line:GetID(), line )
+    end
+
+    local function sync_category_list()
+        if not IsValid( category_list ) then return end
+
+        category_list:Clear()
+        current_category_selection = nil
+
+        for _, category_id in ipairs( get_vehicle_categories( current_vehicle() ) ) do
+            local line = category_list:AddLine( category_id )
+            line.CategoryID = category_id
+        end
+
+        update_status()
+    end
+
+    local function request_refresh( selection_key, start_edit )
+        GUI.PendingSelection = selection_key
+        GUI.PendingStartEdit = start_edit == true
+        GUI.PendingEditVehicle = nil
+        GUI.PendingNewVehicle = false
+
+        net.Start( "HALOARMORY.VEHICLES.ADMIN" )
+            net.WriteString( "GETVEHICLES" )
+        net.SendToServer()
+    end
+
+    local function remove_vehicle( vehicle_key )
+        if not isstring( vehicle_key ) or vehicle_key == "" then return end
+
+        Derma_Query(
+            "Delete vehicle '" .. vehicle_key .. "'?",
+            "Delete Vehicle",
+            "Delete",
+            function()
+                GUI.PendingSelection = nil
+                GUI.PendingStartEdit = false
+                GUI.PendingEditVehicle = nil
+                GUI.PendingNewVehicle = false
+
+                net.Start( "HALOARMORY.VEHICLES.ADMIN" )
+                    net.WriteString( "REMOVEVEHICLE" )
+                    net.WriteString( vehicle_key )
+                net.SendToServer()
+            end,
+            "Cancel"
+        )
+    end
+
+    local function save_vehicle()
+        local vehicle_table = HALOARMORY.Requisition.NormalizeVehicleTable( table.Copy( current_vehicle() ) )
+        vehicle_table.filename = sanitize_vehicle_filename( vehicle_table.filename )
+        set_vehicle_being_edited( vehicle_table )
+
+        local save_filename = vehicle_table.filename
+        local overwrite_other = vehicle_list[save_filename] ~= nil and active_vehicle_key ~= save_filename
+
+        local function do_save()
+            GUI.PendingSelection = save_filename
+            GUI.PendingStartEdit = true
+            GUI.PendingEditVehicle = nil
+            GUI.PendingNewVehicle = false
+
+            net.Start( "HALOARMORY.VEHICLES.ADMIN" )
+                net.WriteString( "SAVEVEHICLE" )
+                net.WriteTable( vehicle_table )
+            net.SendToServer()
+        end
+
+        if overwrite_other then
+            Derma_Query(
+                "A vehicle with that filename already exists. Overwrite it?",
+                "Overwrite Vehicle",
+                "Overwrite",
+                do_save,
+                "Cancel"
+            )
+            return
+        end
+
+        do_save()
+    end
+
+    local function available_category_choices()
+        local active = {}
+        local choices = {}
+
+        for _, category_id in ipairs( get_vehicle_categories( current_vehicle() ) ) do
+            active[category_id] = true
+        end
+
+        for _, category_data in ipairs( HALOARMORY.Requisition.GetCategories( get_vehicle_categories( current_vehicle() ) ) ) do
+            if not active[category_data.id] then
+                table.insert( choices, category_data.id )
+            end
+        end
+
+        sort_strings( choices )
+
+        return choices
+    end
+
+    local function rebuild_editor()
+        right_panel:Clear()
+        category_list = nil
+        remove_category_button = nil
+        current_category_selection = nil
+
+        local vehicle_table = current_vehicle()
+        if not vehicle_table then return end
+
+        local scroll = vgui.Create( "DScrollPanel", right_panel )
+        scroll:Dock( FILL )
+
+        local action_row = vgui.Create( "DPanel", right_panel )
+        action_row:Dock( BOTTOM )
+        action_row:SetTall( 68 )
+        action_row:DockMargin( 8, 8, 8, 8 )
+        action_row.Paint = nil
+
+        local header = vgui.Create( "DLabel", scroll )
+        header:Dock( TOP )
+        header:DockMargin( 8, 8, 8, 4 )
+        header:SetFont( "DermaLarge" )
+        header:SetTall( 28 )
+        header:SetText( get_new_vehicle() and "New Vehicle" or tostring( vehicle_table.name ~= "" and vehicle_table.name or vehicle_table.filename ) )
+
+        dirty_status_label = vgui.Create( "DLabel", scroll )
+        dirty_status_label:Dock( TOP )
+        dirty_status_label:DockMargin( 8, 0, 8, 2 )
+
+        validation_label = vgui.Create( "DLabel", scroll )
+        validation_label:Dock( TOP )
+        validation_label:DockMargin( 8, 0, 8, 8 )
+
+        local filename_row = create_editor_row( scroll, "Filename:" )
+        local filename_entry = vgui.Create( "DTextEntry", filename_row )
+        filename_entry:Dock( FILL )
+        filename_entry:SetValue( tostring( vehicle_table.filename or "" ) )
+
+        local entity_row = create_editor_row( scroll, "Entity Class:" )
+        local guess_name_button = vgui.Create( "DButton", entity_row )
+        guess_name_button:Dock( RIGHT )
+        guess_name_button:SetWide( 28 )
+        guess_name_button:SetText( "" )
+        guess_name_button:SetIcon( "icon16/car.png" )
+
+        local entity_entry = vgui.Create( "DTextEntry", entity_row )
+        entity_entry:Dock( FILL )
+        entity_entry:SetValue( tostring( vehicle_table.entity or "" ) )
+
+        local name_row = create_editor_row( scroll, "Vehicle Name:" )
+        local name_entry = vgui.Create( "DTextEntry", name_row )
+        name_entry:Dock( FILL )
+        name_entry:SetValue( tostring( vehicle_table.name or "" ) )
+
+        local cost_row = create_editor_row( scroll, "Cost:" )
+        local cost_entry = vgui.Create( "DNumberWang", cost_row )
+        cost_entry:Dock( FILL )
+        cost_entry:SetMin( 0 )
+        cost_entry:SetMax( 2147483647 )
+        cost_entry:SetValue( tonumber( vehicle_table.cost ) or 0 )
+
+        local category_header = vgui.Create( "DLabel", scroll )
+        category_header:Dock( TOP )
+        category_header:DockMargin( 8, 8, 8, 4 )
+        category_header:SetFont( "DermaDefaultBold" )
+        category_header:SetText( "Categories" )
+
+        local category_help = vgui.Create( "DLabel", scroll )
+        category_help:Dock( TOP )
+        category_help:DockMargin( 8, 0, 8, 6 )
+        category_help:SetWrap( true )
+        category_help:SetAutoStretchVertical( true )
+        category_help:SetText( "Add a new category id or select one already used by another vehicle." )
+
+        local category_add_row = vgui.Create( "DPanel", scroll )
+        category_add_row:Dock( TOP )
+        category_add_row:SetTall( 28 )
+        category_add_row:DockMargin( 8, 0, 8, 6 )
+        category_add_row.Paint = nil
+
+        local add_category_button = vgui.Create( "DButton", category_add_row )
+        add_category_button:Dock( RIGHT )
+        add_category_button:SetWide( 92 )
+        add_category_button:SetText( "Add" )
+        add_category_button:SetIcon( "icon16/add.png" )
+
+        local category_combo = vgui.Create( "DComboBox", category_add_row )
+        category_combo:Dock( RIGHT )
+        category_combo:SetWide( 170 )
+        category_combo:SetValue( "" )
+
+        local category_entry = vgui.Create( "DTextEntry", category_add_row )
+        category_entry:Dock( FILL )
+        category_entry:SetPlaceholderText( "new_category_id" )
+
+        local category_holder = vgui.Create( "DPanel", scroll )
+        category_holder:Dock( TOP )
+        category_holder:SetTall( 180 )
+        category_holder:DockMargin( 8, 0, 8, 8 )
+        category_holder.Paint = nil
+
+        category_list = vgui.Create( "DListView", category_holder )
+        category_list:Dock( FILL )
+        category_list:SetMultiSelect( false )
+        category_list:AddColumn( "Current Categories" )
+
+        remove_category_button = vgui.Create( "DButton", category_holder )
+        remove_category_button:Dock( BOTTOM )
+        remove_category_button:SetTall( 28 )
+        remove_category_button:SetText( "Remove Selected Category" )
+        remove_category_button:SetIcon( "icon16/delete.png" )
+
+        local action_header = vgui.Create( "DLabel", scroll )
+        action_header:Dock( TOP )
+        action_header:DockMargin( 8, 8, 8, 4 )
+        action_header:SetFont( "DermaDefaultBold" )
+        action_header:SetText( "Vehicle Actions" )
+
+        local action_buttons = vgui.Create( "DPanel", scroll )
+        action_buttons:Dock( TOP )
+        action_buttons:SetTall( 32 )
+        action_buttons:DockMargin( 8, 0, 8, 8 )
+        action_buttons.Paint = nil
+
+        loadout_button = vgui.Create( "DButton", action_buttons )
+        loadout_button:Dock( LEFT )
+        loadout_button:SetWide( 170 )
+        loadout_button:SetText( "Edit Loadouts..." )
+        loadout_button:SetIcon( "icon16/bricks.png" )
+
+        local access_button = vgui.Create( "DButton", action_buttons )
+        access_button:Dock( RIGHT )
+        access_button:SetWide( 170 )
+        access_button:SetText( "Set Access..." )
+        access_button:SetIcon( "icon16/user.png" )
+
+        save_button = vgui.Create( "DButton", action_row )
+        save_button:Dock( LEFT )
+        save_button:SetWide( 160 )
+        save_button:SetText( "Save Vehicle" )
+        save_button:SetIcon( "icon16/disk.png" )
+
+        local revert_button = vgui.Create( "DButton", action_row )
+        revert_button:Dock( LEFT )
+        revert_button:DockMargin( 8, 0, 0, 0 )
+        revert_button:SetWide( 160 )
+        revert_button:SetText( "Revert Changes" )
+        revert_button:SetIcon( "icon16/arrow_undo.png" )
+
+        delete_button = vgui.Create( "DButton", action_row )
+        delete_button:Dock( RIGHT )
+        delete_button:SetWide( 160 )
+        delete_button:SetText( "Delete Vehicle" )
+        delete_button:SetIcon( "icon16/delete.png" )
+
+        local function refresh_category_choices()
+            local previous_value = category_combo:GetValue()
+            category_combo:Clear()
+
+            for _, category_id in ipairs( available_category_choices() ) do
+                category_combo:AddChoice( category_id )
+            end
+
+            category_combo:SetValue( previous_value ~= "" and previous_value or "" )
+        end
+
+        local function refresh_header()
+            header:SetText( get_new_vehicle() and "New Vehicle" or tostring( vehicle_table.name ~= "" and vehicle_table.name or vehicle_table.filename ) )
+            update_status()
+        end
+
+        local function add_category()
+            local typed_value = HALOARMORY.Requisition.SanitizeCategory( category_entry:GetValue() )
+            local selected_value = HALOARMORY.Requisition.SanitizeCategory( category_combo:GetValue() )
+            local category_id = typed_value ~= "" and typed_value or selected_value
+
+            if category_id == "" then
+                notification.AddLegacy( "Enter or select a category first.", NOTIFY_ERROR, 3 )
+                return
+            end
+
+            vehicle_table.categories[category_id] = true
+            vehicle_table.categories = HALOARMORY.Requisition.NormalizeVehicleCategories( vehicle_table.categories )
+
+            category_entry:SetValue( "" )
+            category_combo:SetValue( "" )
+
+            sync_category_list()
+            refresh_category_choices()
+            refresh_header()
+        end
+
+        filename_entry.OnChange = function( self )
+            local caret_pos = self:GetCaretPos()
+            local new_filename = sanitize_vehicle_filename( self:GetValue() )
+
+            if self:GetValue() ~= new_filename then
+                self:SetText( new_filename )
+                self:SetCaretPos( math.min( caret_pos, string.len( new_filename ) ) )
+            end
+
+            vehicle_table.filename = new_filename
+            refresh_header()
+        end
+
+        entity_entry.OnChange = function( self )
+            vehicle_table.entity = self:GetValue()
+            refresh_header()
+        end
+
+        name_entry.OnChange = function( self )
+            vehicle_table.name = self:GetValue()
+            refresh_header()
+        end
+
+        local function update_cost()
+            vehicle_table.cost = tonumber( cost_entry:GetValue() ) or 0
+            refresh_header()
+        end
+
+        cost_entry.OnValueChanged = update_cost
+        cost_entry.OnChange = update_cost
+
+        guess_name_button.DoClick = function()
+            local _, _, vehicle_print_name = HALOARMORY.Requisition.GetModelAndNameFromVehicle( entity_entry:GetValue() )
+            if not vehicle_print_name then return end
+
+            name_entry:SetValue( tostring( vehicle_print_name ) )
+            vehicle_table.name = tostring( vehicle_print_name )
+            refresh_header()
+        end
+
+        add_category_button.DoClick = add_category
+        category_entry.OnEnter = add_category
+
+        category_list.OnRowSelected = function( _, _, line )
+            current_category_selection = IsValid( line ) and line.CategoryID or nil
+            update_status()
+        end
+
+        category_list.DoDoubleClick = function( _, _, line )
+            if not IsValid( line ) then return end
+
+            vehicle_table.categories[line.CategoryID] = nil
+            vehicle_table.categories = HALOARMORY.Requisition.NormalizeVehicleCategories( vehicle_table.categories )
+            sync_category_list()
+            refresh_category_choices()
+            refresh_header()
+        end
+
+        remove_category_button.DoClick = function()
+            if not current_category_selection then return end
+
+            vehicle_table.categories[current_category_selection] = nil
+            vehicle_table.categories = HALOARMORY.Requisition.NormalizeVehicleCategories( vehicle_table.categories )
+            sync_category_list()
+            refresh_category_choices()
+            refresh_header()
+        end
+
+        loadout_button.DoClick = function()
+            GUI.OpenLoadoutEditor()
+        end
+
+        access_button.DoClick = function()
+            HALOARMORY.INTERFACE.ACCESS.Open( vehicle_table.AccessList or {}, function( new_access_list )
+                vehicle_table.AccessList = new_access_list or {}
+                refresh_header()
+            end, "Authorization" )
+        end
+
+        save_button.DoClick = function()
+            local can_save, validation_text = validate_vehicle()
+            if not can_save then
+                notification.AddLegacy( validation_text, NOTIFY_ERROR, 4 )
+                return
+            end
+            save_vehicle()
+        end
+
+        revert_button.DoClick = function()
+            confirm_discard( function()
+                if get_new_vehicle() then
+                    load_vehicle_into_editor( new_template_vehicle(), {
+                        is_new = true,
+                        force = true,
+                    } )
+                    return
+                end
+
+                if active_vehicle_key and vehicle_list[active_vehicle_key] then
+                    load_vehicle_into_editor( vehicle_list[active_vehicle_key], {
+                        is_new = false,
+                        source_filename = active_vehicle_key,
+                        force = true,
+                    } )
+                    return
+                end
+
+                request_refresh( active_vehicle_key, true )
+            end )
+        end
+
+        delete_button.DoClick = function()
+            if active_vehicle_key then
+                remove_vehicle( active_vehicle_key )
+            end
+        end
+
+        sync_category_list()
+        refresh_category_choices()
+        update_status()
+    end
+
+    load_vehicle_into_editor = function( vehicle_table, options )
+        options = options or {}
+
+        if not options.force then
+            confirm_discard( function()
+                load_vehicle_into_editor( vehicle_table, {
+                    is_new = options.is_new,
+                    source_filename = options.source_filename,
+                    force = true,
+                } )
+            end )
+            return
+        end
+
+        local normalized = HALOARMORY.Requisition.NormalizeVehicleTable( table.Copy( vehicle_table or new_template_vehicle() ) )
+        normalized.filename = sanitize_vehicle_filename( normalized.filename )
+        normalized.AccessList = normalized.AccessList or {}
+
+        set_vehicle_being_edited( normalized )
+        set_new_vehicle( options.is_new == true )
+
+        active_vehicle_key = not get_new_vehicle() and sanitize_vehicle_filename( options.source_filename or normalized.old_filename or normalized.filename ) or nil
+        if get_new_vehicle() then
+            normalized.old_filename = nil
+            selected_filename = nil
+        else
+            normalized.old_filename = active_vehicle_key
+            selected_filename = active_vehicle_key
+        end
+
+        editor_baseline = serialize_vehicle( normalized )
+        rebuild_editor()
+        select_vehicle_row( selected_filename )
+    end
+
+    refresh_list_view = function()
+        vehicle_rows = {}
+        vehicle_list_view:Clear()
+
+        for _, vehicle_key in ipairs( sorted_vehicle_keys( vehicle_list ) ) do
+            local vehicle_data = vehicle_list[vehicle_key]
+            local line = vehicle_list_view:AddLine(
+                vehicle_data.filename or vehicle_key,
+                vehicle_data.name or "",
+                vehicle_data.entity or "",
+                tostring( math.Round( tonumber( vehicle_data.cost ) or 0 ) ),
+                table.concat( get_vehicle_categories( vehicle_data ), ", " ),
+                tostring( table.Count( vehicle_data.colors or {} ) ),
+                tostring( table.Count( vehicle_data.skins or {} ) ),
+                tostring( count_bodygroups( vehicle_data ) )
+            )
+
+            line.VehicleFilename = vehicle_key
+            vehicle_rows[vehicle_key] = line
+        end
+
+        if selected_filename then
+            select_vehicle_row( selected_filename )
+        end
+    end
+
+    local toolbar = vgui.Create( "DPanel", frame )
+    toolbar:Dock( TOP )
+    toolbar:SetTall( 36 )
+    toolbar:DockMargin( 8, 4, 8, 8 )
+    toolbar.Paint = nil
+
+    local add_vehicle_button = vgui.Create( "DButton", toolbar )
+    add_vehicle_button:Dock( LEFT )
+    add_vehicle_button:SetWide( 130 )
+    add_vehicle_button:SetText( "Add Vehicle" )
+    add_vehicle_button:SetIcon( "icon16/add.png" )
+
+    local duplicate_button = vgui.Create( "DButton", toolbar )
+    duplicate_button:Dock( LEFT )
+    duplicate_button:DockMargin( 8, 0, 0, 0 )
+    duplicate_button:SetWide( 150 )
+    duplicate_button:SetText( "Duplicate Selected" )
+    duplicate_button:SetIcon( "icon16/page_copy.png" )
+
+    local refresh_button = vgui.Create( "DButton", toolbar )
+    refresh_button:Dock( LEFT )
+    refresh_button:DockMargin( 8, 0, 0, 0 )
+    refresh_button:SetWide( 120 )
+    refresh_button:SetText( "Refresh List" )
+    refresh_button:SetIcon( "icon16/arrow_refresh.png" )
+
+    local hint_label = vgui.Create( "DLabel", toolbar )
+    hint_label:Dock( FILL )
+    hint_label:DockMargin( 12, 0, 12, 0 )
+    hint_label:SetText( "Double-click a row to load it into the editor panel." )
+    hint_label:SetContentAlignment( 4 )
+
+    local splitter = vgui.Create( "DHorizontalDivider", frame )
+    splitter:Dock( FILL )
+    splitter:SetLeftWidth( 720 )
+    splitter:SetDividerWidth( 4 )
+
+    local left_panel = vgui.Create( "DPanel", frame )
+    left_panel.Paint = nil
+
+    right_panel = vgui.Create( "DPanel", frame )
+    right_panel.Paint = nil
+
+    splitter:SetLeft( left_panel )
+    splitter:SetRight( right_panel )
+
+    local table_header = vgui.Create( "DLabel", left_panel )
+    table_header:Dock( TOP )
+    table_header:DockMargin( 8, 8, 8, 4 )
+    table_header:SetFont( "DermaDefaultBold" )
+    table_header:SetText( "Vehicle Table" )
+
+    vehicle_list_view = vgui.Create( "DListView", left_panel )
+    vehicle_list_view:Dock( FILL )
+    vehicle_list_view:DockMargin( 8, 0, 8, 8 )
+    vehicle_list_view:SetMultiSelect( false )
+    vehicle_list_view:AddColumn( "Filename" )
+    vehicle_list_view:AddColumn( "Name" )
+    vehicle_list_view:AddColumn( "Entity" )
+    vehicle_list_view:AddColumn( "Cost" )
+    vehicle_list_view:AddColumn( "Categories" )
+    vehicle_list_view:AddColumn( "Colors" )
+    vehicle_list_view:AddColumn( "Skins" )
+    vehicle_list_view:AddColumn( "Bodygroups" )
+
+    vehicle_list_view.OnRowSelected = function( _, _, line )
+        if not IsValid( line ) then return end
+        selected_filename = line.VehicleFilename
+    end
+
+    vehicle_list_view.DoDoubleClick = function( _, _, line )
+        if not IsValid( line ) then return end
+
+        local vehicle_key = line.VehicleFilename
+        local vehicle_table = vehicle_list[vehicle_key]
+        if not vehicle_table then return end
+
+        load_vehicle_into_editor( vehicle_table, {
+            is_new = false,
+            source_filename = vehicle_key,
+        } )
+    end
+
+    add_vehicle_button.DoClick = function()
+        confirm_discard( function()
+            load_vehicle_into_editor( new_template_vehicle(), {
+                is_new = true,
+                force = true,
+            } )
+        end )
+    end
+
+    duplicate_button.DoClick = function()
+        if not selected_filename or not vehicle_list[selected_filename] then
+            notification.AddLegacy( "Select a vehicle to duplicate first.", NOTIFY_ERROR, 3 )
+            return
+        end
+
+        confirm_discard( function()
+            local source_vehicle = table.Copy( vehicle_list[selected_filename] )
+            // Generate a new unique filename
+            local base_name = source_vehicle.filename or "vehicle"
+            local new_name = base_name .. "_copy"
+            local counter = 1
+            while vehicle_list[new_name] do
+                new_name = base_name .. "_copy" .. tostring( counter )
+                counter = counter + 1
+            end
+            source_vehicle.filename = new_name
+            source_vehicle.name = (source_vehicle.name or "") .. " (Copy)"
+            source_vehicle.old_filename = nil
+            
+            load_vehicle_into_editor( source_vehicle, {
+                is_new = true,
+                force = true,
+            } )
+        end )
+    end
+
+    refresh_button.DoClick = function()
+        confirm_discard( function()
+            request_refresh( selected_filename, false )
+        end )
+    end
+
+    frame.LoadVehicleIntoEditor = function( _, vehicle_table, options )
+        load_vehicle_into_editor( vehicle_table, options )
+    end
+
+    refresh_list_view()
+
+    local pending_vehicle = GUI.PendingEditVehicle
+    local pending_selection = GUI.PendingSelection
+    local pending_start_edit = GUI.PendingStartEdit == true
+    local pending_new_vehicle = GUI.PendingNewVehicle == true
+
+    GUI.PendingEditVehicle = nil
+    GUI.PendingSelection = nil
+    GUI.PendingStartEdit = nil
+    GUI.PendingNewVehicle = nil
+
+    if istable( pending_vehicle ) then
+        load_vehicle_into_editor( pending_vehicle, {
+            is_new = pending_new_vehicle,
+            source_filename = pending_vehicle.old_filename or pending_vehicle.filename,
+            force = true,
+        } )
+    elseif pending_start_edit and pending_selection and vehicle_list[pending_selection] then
+        load_vehicle_into_editor( vehicle_list[pending_selection], {
+            is_new = false,
+            source_filename = pending_selection,
+            force = true,
+        } )
+    else
+        if pending_selection and vehicle_list[pending_selection] then
+            selected_filename = pending_selection
+            select_vehicle_row( pending_selection )
+        end
+
+        local empty_title = vgui.Create( "DLabel", right_panel )
+        empty_title:Dock( TOP )
+        empty_title:DockMargin( 8, 16, 8, 0 )
+        empty_title:SetFont( "DermaLarge" )
+        empty_title:SetTall( 28 )
+        empty_title:SetText( "Vehicle Editor" )
+
+        local empty_help = vgui.Create( "DLabel", right_panel )
+        empty_help:Dock( TOP )
+        empty_help:DockMargin( 8, 4, 8, 0 )
+        empty_help:SetWrap( true )
+        empty_help:SetAutoStretchVertical( true )
+        empty_help:SetText( "Double-click a row to edit it here. Categories are derived from the vehicle data instead of a separate stored list." )
+    end
 end
+
+net.Receive( "HALOARMORY.VEHICLES.ADMIN", function()
+    local message_type = net.ReadString()
+
+    if message_type == "GETVEHICLES" then
+        local payload_len = net.ReadUInt( 32 )
+        local payload = net.ReadData( payload_len )
+        local vehicle_list = util.JSONToTable( util.Decompress( payload ) or "" ) or {}
+
+        GUI.VehicleList = vehicle_list
+        HALOARMORY.VEHICLES.LIST = table.Copy( vehicle_list )
+
+        GUI.OpenGUI( vehicle_list )
+
+    elseif message_type == "EDITVEHICLE" then
+        set_new_vehicle( false )
+        GUI.OpenVehicleEditor( net.ReadTable() )
+    end
+end )
+
+concommand.Add( "HALOARMORY.ManageVehicles", GUI.OpenGUI )
 
 list.Set( "DesktopWindows", "HALOARMORY.VEHICLES.ADMIN", {
     title = "Vehicles Editor",
     icon = "vgui/haloarmory/icons/anchor.png",
-    init = function( icon, window )
-        HALOARMORY.VEHICLES.ADMIN_GUI.OpenGUI()
+    init = function()
+        GUI.OpenGUI()
     end,
-})
+} )
 
-if HALOARMORY.VEHICLES.ADMIN_GUI.MainFrame then
-    HALOARMORY.VEHICLES.ADMIN_GUI.MainFrame:Remove()
-    HALOARMORY.VEHICLES.ADMIN_GUI.MainFrame = nil
-    HALOARMORY.VEHICLES.ADMIN_GUI.OpenGUI( nil )
+if IsValid( GUI.MainFrameLoadoutEditor ) then
+    GUI.MainFrameLoadoutEditor:Remove()
+    GUI.MainFrameLoadoutEditor = nil
+    GUI.OpenLoadoutEditor()
 end
 
-if HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor then
-    HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor:Remove()
-    HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameEditor = nil
-    HALOARMORY.VEHICLES.ADMIN_GUI.OpenVehicleEditor()
-end
-
-if HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameLoadoutEditor then
-    HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameLoadoutEditor:Remove()
-    HALOARMORY.VEHICLES.ADMIN_GUI.MainFrameLoadoutEditor = nil
-    HALOARMORY.VEHICLES.ADMIN_GUI.OpenLoadoutEditor()
+if IsValid( GUI.MainFrame ) then
+    GUI.MainFrame:Remove()
+    GUI.MainFrame = nil
+    GUI.MainFrameEditor = nil
+    GUI.OpenGUI( nil )
+elseif IsValid( GUI.MainFrameEditor ) then
+    GUI.MainFrameEditor:Remove()
+    GUI.MainFrameEditor = nil
+    GUI.OpenGUI( nil )
 end

@@ -97,8 +97,8 @@ local function get_model_config_value( ent, key, fallback )
 end
 
 function ENT:CustomDataTables()
-    self:NetworkVar( "String", 3, "PadID", { KeyName = "PadID", Edit = { type = "String", order = 1 } } )
-    self:NetworkVar( "String", 4, "PadCategory", {
+    self:NetworkVar( "Int", 2, "PadID", { KeyName = "PadID", Edit = { type = "Int", order = 1, min = 0, max = 999999 } } )
+    self:NetworkVar( "String", 3, "PadCategory", {
         KeyName = "PadCategory",
         Edit = {
             type = "Combo",
@@ -126,23 +126,6 @@ function ENT:CustomDataTables()
     self:NetworkVar( "Vector", 0, "LightColor", { KeyName = "LightColor", Edit = { type = "VectorColor", order = 13, category = "Lights" } } )
 
     if SERVER then
-        local random_uuid = util.CRC( tostring( self:EntIndex() ) .. "_" .. tostring( CurTime() ) .. "_" .. tostring( math.random( 0, 100000 ) ) )
-
-        for _ = 1, 10 do
-            local found = false
-            for _, ent in pairs( ents.GetAll() ) do
-                if not isfunction( ent.GetPadID ) then continue end
-                if ent:GetPadID() == random_uuid then
-                    random_uuid = util.CRC( tostring( self:EntIndex() ) .. "_" .. tostring( CurTime() ) .. "_" .. tostring( math.random( 0, 100000 ) ) )
-                    found = true
-                    break
-                end
-            end
-
-            if not found then break end
-        end
-
-        self:SetPadID( random_uuid )
         self:SetOnPad( NULL )
         self:SetPadCategory( HALOARMORY.Requisition.NormalizeCategory( self.LegacyPadCategory ) )
         self:SetRequiresSupplies( self.RequiresSupplies ~= false )
@@ -267,6 +250,11 @@ function ENT:ApplyPadConfig( data )
     local target_model = data.model or self:GetModel()
     if not self:ApplyPadModel( target_model ) then
         return false
+    end
+
+    local pad_id = tonumber( data.pad_id )
+    if pad_id and pad_id > 0 then
+        self:SetPadID( pad_id )
     end
 
     if isstring( data.device_name ) and data.device_name ~= "" then

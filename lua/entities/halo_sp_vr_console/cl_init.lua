@@ -37,7 +37,7 @@ function ENT:DrawScreen()
                     return
                 end
                 
-                if self:GetConsoleID() ~= "" then
+                if self:GetConsoleID() > 0 then
                     // Loop through all the pads and find the one that matches the console ID
                     local pads = {}
 

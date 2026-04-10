@@ -15,6 +15,10 @@ local ACTION_REQUEST_PAD_CONFIG = 5
 local ACTION_OPEN_PAD_CONFIG = 6
 local ACTION_APPLY_PAD_CONFIG = 7
 local ACTION_CREATE_PAD = 8
+local ACTION_OPEN_NEW_PAD_CONFIG = 9
+local ACTION_OPEN_CONSOLE_CONFIG = 10
+local ACTION_APPLY_CONSOLE_CONFIG = 11
+local ACTION_CREATE_CONSOLE = 12
 
 if SERVER then
     util.AddNetworkString( NET_NAME )
@@ -48,11 +52,11 @@ if CLIENT then
         Callbacks[action] = nil
     end
 
-    local function open_pad_config_gui_later( pad_ent, networks, spawn_request )
+    local function open_pad_config_gui_later( pad_ent, networks, spawn_request, categories )
         timer.Simple( 0, function()
             if not isfunction( HALOARMORY.Requisition.OpenPadConfigGUI ) then return end
 
-            HALOARMORY.Requisition.OpenPadConfigGUI( pad_ent, networks, spawn_request )
+            HALOARMORY.Requisition.OpenPadConfigGUI( pad_ent, networks, spawn_request, categories )
         end )
     end
 
@@ -97,8 +101,9 @@ if CLIENT then
         elseif action == ACTION_OPEN_PAD_CONFIG then
             local pad_ent = net.ReadEntity()
             local networks = net.ReadTable()
+            local categories = net.ReadTable()
 
-            open_pad_config_gui_later( pad_ent, networks )
+            open_pad_config_gui_later( pad_ent, networks, nil, categories )
 
         elseif action == ACTION_APPLY_PAD_CONFIG then
             local success = net.ReadBool()
@@ -109,6 +114,25 @@ if CLIENT then
             local success = net.ReadBool()
 
             run_callback( ACTION_CREATE_PAD, success )
+
+        elseif action == ACTION_OPEN_CONSOLE_CONFIG then
+            local console_ent = net.ReadEntity()
+
+            timer.Simple( 0, function()
+                if not isfunction( HALOARMORY.Requisition.OpenConsoleConfigGUI ) then return end
+
+                HALOARMORY.Requisition.OpenConsoleConfigGUI( IsValid( console_ent ) and console_ent or nil )
+            end )
+
+        elseif action == ACTION_APPLY_CONSOLE_CONFIG then
+            local success = net.ReadBool()
+
+            run_callback( ACTION_APPLY_CONSOLE_CONFIG, success )
+
+        elseif action == ACTION_CREATE_CONSOLE then
+            local success = net.ReadBool()
+
+            run_callback( ACTION_CREATE_CONSOLE, success )
         end
     end )
 
@@ -158,6 +182,12 @@ if CLIENT then
         net.SendToServer()
     end
 
+    function HALOARMORY.VEHICLES.NETWORK.OpenNewPadConfig()
+        net.Start( NET_NAME )
+            net.WriteUInt( ACTION_OPEN_NEW_PAD_CONFIG, 8 )
+        net.SendToServer()
+    end
+
     function HALOARMORY.VEHICLES.NETWORK.ApplyPadConfig( pad_ent, data, callback )
         Callbacks[ACTION_APPLY_PAD_CONFIG] = callback
 
@@ -176,6 +206,34 @@ if CLIENT then
             net.WriteString( tostring( class_name or "halo_sp_vr_pad" ) )
             net.WriteVector( isvector( spawn_data and spawn_data.spawn_pos ) and spawn_data.spawn_pos or vector_origin )
             net.WriteAngle( isangle( spawn_data and spawn_data.spawn_ang ) and spawn_data.spawn_ang or angle_zero )
+            net.WriteTable( data or {} )
+        net.SendToServer()
+    end
+
+    function HALOARMORY.VEHICLES.NETWORK.OpenConsoleConfig( console_ent )
+        net.Start( NET_NAME )
+            net.WriteUInt( ACTION_OPEN_CONSOLE_CONFIG, 8 )
+            net.WriteEntity( IsValid( console_ent ) and console_ent or NULL )
+        net.SendToServer()
+    end
+
+    function HALOARMORY.VEHICLES.NETWORK.ApplyConsoleConfig( console_ent, data, callback )
+        Callbacks[ACTION_APPLY_CONSOLE_CONFIG] = callback
+
+        net.Start( NET_NAME )
+            net.WriteUInt( ACTION_APPLY_CONSOLE_CONFIG, 8 )
+            net.WriteEntity( console_ent )
+            net.WriteTable( data or {} )
+        net.SendToServer()
+    end
+
+    function HALOARMORY.VEHICLES.NETWORK.CreateConsole( spawn_pos, spawn_ang, data, callback )
+        Callbacks[ACTION_CREATE_CONSOLE] = callback
+
+        net.Start( NET_NAME )
+            net.WriteUInt( ACTION_CREATE_CONSOLE, 8 )
+            net.WriteVector( isvector( spawn_pos ) and spawn_pos or vector_origin )
+            net.WriteAngle( isangle( spawn_ang ) and spawn_ang or angle_zero )
             net.WriteTable( data or {} )
         net.SendToServer()
     end
@@ -199,6 +257,7 @@ if SERVER then
             net.WriteUInt( ACTION_OPEN_PAD_CONFIG, 8 )
             net.WriteEntity( pad_ent )
             net.WriteTable( get_sorted_networks() )
+            net.WriteTable( HALOARMORY.Requisition.GetCategories() )
         net.Send( ply )
     end
 
@@ -301,6 +360,15 @@ if SERVER then
 
             HALOARMORY.VEHICLES.NETWORK.OpenPadConfig( pad_ent, ply )
 
+        elseif action == ACTION_OPEN_NEW_PAD_CONFIG then
+            -- Open pad config for creating a new pad
+            net.Start( NET_NAME )
+                net.WriteUInt( ACTION_OPEN_PAD_CONFIG, 8 )
+                net.WriteEntity( NULL )
+                net.WriteTable( get_sorted_networks() )
+                net.WriteTable( HALOARMORY.Requisition.GetCategories() )
+            net.Send( ply )
+
         elseif action == ACTION_APPLY_PAD_CONFIG then
             local pad_ent = net.ReadEntity()
             local config_data = net.ReadTable()
@@ -357,6 +425,71 @@ if SERVER then
 
             net.Start( NET_NAME )
                 net.WriteUInt( ACTION_CREATE_PAD, 8 )
+                net.WriteBool( success )
+            net.Send( ply )
+
+        elseif action == ACTION_OPEN_CONSOLE_CONFIG then
+            local console_ent = net.ReadEntity()
+
+            if not ply:IsAdmin() then return end
+
+            net.Start( NET_NAME )
+                net.WriteUInt( ACTION_OPEN_CONSOLE_CONFIG, 8 )
+                net.WriteEntity( IsValid( console_ent ) and console_ent or NULL )
+            net.Send( ply )
+
+        elseif action == ACTION_APPLY_CONSOLE_CONFIG then
+            local console_ent = net.ReadEntity()
+            local config_data = net.ReadTable()
+            local success = false
+
+            if IsValid( console_ent ) and ply:IsAdmin() and isfunction( console_ent.ApplyConsoleConfig ) then
+                success = console_ent:ApplyConsoleConfig( config_data ) == true
+            end
+
+            net.Start( NET_NAME )
+                net.WriteUInt( ACTION_APPLY_CONSOLE_CONFIG, 8 )
+                net.WriteBool( success )
+            net.Send( ply )
+
+        elseif action == ACTION_CREATE_CONSOLE then
+            local spawn_pos = net.ReadVector()
+            local spawn_ang = net.ReadAngle()
+            local config_data = net.ReadTable()
+            local success = false
+
+            if not ply:IsAdmin() then return end
+
+            local ent = ents.Create( "halo_sp_vr_console" )
+            if IsValid( ent ) then
+                ent:SetPos( spawn_pos )
+                ent:SetAngles( spawn_ang )
+                ent:Spawn()
+                ent:Activate()
+
+                if ent.CPPISetOwner then
+                    ent:CPPISetOwner( ply )
+                end
+
+                if isfunction( ent.ApplyConsoleConfig ) then
+                    success = ent:ApplyConsoleConfig( config_data ) == true
+                end
+
+                if success then
+                    undo.Create( "Requisition Console" )
+                        undo.AddEntity( ent )
+                        undo.SetPlayer( ply )
+                    undo.Finish()
+
+                    cleanup.Add( ply, "sents", ent )
+                    ply:AddCleanup( "sents", ent )
+                else
+                    ent:Remove()
+                end
+            end
+
+            net.Start( NET_NAME )
+                net.WriteUInt( ACTION_CREATE_CONSOLE, 8 )
                 net.WriteBool( success )
             net.Send( ply )
         end

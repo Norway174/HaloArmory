@@ -93,6 +93,17 @@ local MenuUsers = {}
 
 util.AddNetworkString("HALOARMORY.VEHICLES.ADMIN")
 
+local function send_vehicle_list( ply )
+    local payload = util.Compress( util.TableToJSON( HALOARMORY.VEHICLES.LIST or {}, true ) )
+    local payload_len = #payload
+
+    net.Start("HALOARMORY.VEHICLES.ADMIN")
+        net.WriteString("GETVEHICLES")
+        net.WriteUInt( payload_len, 32 )
+        net.WriteData( payload, payload_len )
+    net.Send( ply )
+end
+
 
 net.Receive("HALOARMORY.VEHICLES.ADMIN", function(len, ply)
 
@@ -112,23 +123,10 @@ net.Receive("HALOARMORY.VEHICLES.ADMIN", function(len, ply)
 
     if Type == "GETVEHICLES" then
 
-        net.Start("HALOARMORY.VEHICLES.ADMIN")
+        MenuUsers[ply] = true
 
-            MenuUsers[ply] = true
-
-            net.WriteString("GETVEHICLES")
-
-            HALOARMORY.VEHICLES.ADMIN.LOADVEHICLES()
-
-            local FileNames = {}
-
-            for k, v in pairs( HALOARMORY.VEHICLES.LIST ) do
-                table.insert( FileNames, k )
-            end
-
-            net.WriteTable(FileNames)
-
-        net.Send(ply)
+        HALOARMORY.VEHICLES.ADMIN.LOADVEHICLES()
+        send_vehicle_list( ply )
 
     elseif Type == "MENUCLOSED" then
             MenuUsers[ply] = nil
@@ -160,6 +158,8 @@ net.Receive("HALOARMORY.VEHICLES.ADMIN", function(len, ply)
         --PrintTable(Vehicle)
 
         HALOARMORY.VEHICLES.ADMIN.SAVEVEHICLE( Vehicle.filename, Vehicle )
+        HALOARMORY.VEHICLES.ADMIN.LOADVEHICLES()
+        send_vehicle_list( ply )
 
     elseif Type == "REMOVEVEHICLE" then
 
@@ -173,19 +173,7 @@ net.Receive("HALOARMORY.VEHICLES.ADMIN", function(len, ply)
 
         HALOARMORY.VEHICLES.ADMIN.LOADVEHICLES()
 
-        net.Start("HALOARMORY.VEHICLES.ADMIN")
-
-            net.WriteString("GETVEHICLES")
-
-            local FileNames = {}
-
-            for k, v in pairs( HALOARMORY.VEHICLES.LIST ) do
-                table.insert( FileNames, k )
-            end
-
-            net.WriteTable(FileNames)
-
-        net.Send(ply)
+        send_vehicle_list( ply )
 
     end
 

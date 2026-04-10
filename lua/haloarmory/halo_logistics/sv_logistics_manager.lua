@@ -14,6 +14,8 @@ util.AddNetworkString("HALOARMORY.Logistics.NETWORKS.ADD")
 util.AddNetworkString("HALOARMORY.Logistics.NETWORKS.REMOVE")
 util.AddNetworkString("HALOARMORY.Logistics.NETWORKS.EDIT")
 util.AddNetworkString("HALOARMORY.Logistics.NETWORKS.EDIT.SAVE")
+util.AddNetworkString("HALOARMORY.Logistics.NETWORKS.MENUCLOSED")
+util.AddNetworkString("HALOARMORY.Logistics.NETWORKS.GET_DETAILS")
 
 // User Access
 util.AddNetworkString("HALOARMORY.Logistics.ACCESS.GetDevices")
@@ -428,6 +430,20 @@ net.Receive( "HALOARMORY.Logistics.NETWORKS.GET", function( len, ply )
 
 end )
 
+// Get full details for all networks (for populating the list view with real data)
+net.Receive( "HALOARMORY.Logistics.NETWORKS.GET_DETAILS", function( len, ply )
+    if not ply:IsAdmin() then return end
+
+    // Send each network's full data
+    for name, network in pairs( HALOARMORY.Logistics.Networks ) do
+        net.Start("HALOARMORY.Logistics.NETWORKS.GET_DETAILS")
+        net.WriteString( name )
+        net.WriteTable( network )
+        net.Send( ply )
+    end
+
+end )
+
 net.Receive( "HALOARMORY.Logistics.NETWORKS.EDIT", function( len, ply )
     if not ply:IsAdmin() then return end
 
@@ -449,15 +465,54 @@ net.Receive( "HALOARMORY.Logistics.NETWORKS.EDIT.SAVE", function( len, ply )
     local old_network = networks_to_save.old_network
     local new_network = networks_to_save.new_network
 
-    HALOARMORY.Logistics.UpdateNetwork( old_network, new_network )
+    // Normalize the new network name
+    local new_name = string.lower( tostring( new_network.Name or "" ) )
+    new_name = string.Replace( new_name, " ", "_" )
+    new_network.Name = new_name
 
-    local the_network = HALOARMORY.Logistics.SyncNetworks()
+    // Check if this is a new network or an update
+    local is_new = not old_network or not old_network.Name or not HALOARMORY.Logistics.Networks[old_network.Name]
 
-    timer.Simple( 0.5, function()
-        net.Start("HALOARMORY.Logistics.NETWORKS.ADD")
-        net.WriteTable( the_network )
+    if is_new then
+        // Creating a new network
+        HALOARMORY.Logistics.Networks[new_name] = new_network
+        SaveNetworkToFile( new_name )
+        HALOARMORY.MsgC("[SaveNetwork] HALO SUPPLIES: New network '"..new_name.."' created.")
+    else
+        // Updating an existing network
+        local old_name = old_network.Name
+        
+        if old_name ~= new_name then
+            // Network was renamed - remove old, create new
+            HALOARMORY.Logistics.RemoveNetwork( old_name )
+            HALOARMORY.Logistics.Networks[new_name] = new_network
+            SaveNetworkToFile( new_name )
+            HALOARMORY.MsgC("[SaveNetwork] HALO SUPPLIES: Network '"..old_name.."' renamed to '"..new_name.."'.")
+        else
+            // Just updating values
+            HALOARMORY.Logistics.Networks[new_name] = new_network
+            SaveNetworkToFile( new_name )
+            HALOARMORY.MsgC("[SaveNetwork] HALO SUPPLIES: Network '"..new_name.."' updated.")
+        end
+    end
+
+    HALOARMORY.Logistics.SyncNetworks()
+    HALOARMORY.Logistics.UpdateNetworkDevices( new_name )
+
+    // Send the network names list
+    local network_names = HALOARMORY.Logistics.SyncNetworks()
+
+    net.Start("HALOARMORY.Logistics.NETWORKS.ADD")
+    net.WriteTable( network_names )
+    net.Send( ply )
+
+    // Send full details for all networks to populate the list
+    for name, network in pairs( HALOARMORY.Logistics.Networks ) do
+        net.Start("HALOARMORY.Logistics.NETWORKS.GET_DETAILS")
+        net.WriteString( name )
+        net.WriteTable( network )
         net.Send( ply )
-    end )
+    end
 end )
 
 --[[
