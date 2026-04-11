@@ -106,12 +106,12 @@ end )
 
 
 
-HALOARMORY.AR.RegisterApp( "AR_IFF2", -1, "Toggle HUD2", "vgui/haloarmory/icons/IFF.png", function()
+HALOARMORY.AR.RegisterApp( "AR_IFF2", -1, "Toggle HUD", "vgui/haloarmory/icons/IFF.png", function()
     RunConsoleCommand( "AR_IFF2.Toggle" )
     surface.PlaySound( "buttons/button24.wav" )
 end,
 function()
-    return HALOARMORY.AR.IFF2.IFFenabled and "IFF2 HUD [ON]" or "IFF2 HUD [OFF]"
+    return HALOARMORY.AR.IFF2.IFFenabled and "IFF HUD [ON]" or "IFF HUD [OFF]"
 end )
 
 
