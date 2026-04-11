@@ -114,6 +114,29 @@ var osShell = {
         return !!(this.clipboard && this.clipboard.items && this.clipboard.items.length);
     },
 
+    getSelectedTextForClipboard: function(target) {
+        if (target) {
+            var tagName = String(target.tagName || '').toUpperCase();
+            if (tagName === 'TEXTAREA' || tagName === 'INPUT') {
+                var start = typeof target.selectionStart === 'number' ? target.selectionStart : 0;
+                var end = typeof target.selectionEnd === 'number' ? target.selectionEnd : 0;
+                if (end > start) {
+                    return String(target.value || '').substring(start, end);
+                }
+            }
+        }
+
+        var selection = null;
+        try {
+            selection = window.getSelection ? window.getSelection() : null;
+        } catch (error) {
+            selection = null;
+        }
+
+        var text = selection ? String(selection.toString() || '') : '';
+        return text.trim() ? text : '';
+    },
+
     initKeyboardShortcuts: function() {
         if (this.keyboardShortcutsInitialized) {
             return;
@@ -127,11 +150,26 @@ var osShell = {
                 return;
             }
 
+            var key = String(e.key || '').toLowerCase();
+            if (key === 'c') {
+                var selectedText = self.getSelectedTextForClipboard(e.target);
+                if (selectedText) {
+                    e.preventDefault();
+                    if (window.copyTextToClipboard) {
+                        window.copyTextToClipboard(selectedText, function(success) {
+                            if (!success && window.osErrorHandler) {
+                                window.osErrorHandler.showNotification('Failed to copy text.', 'error', 1800);
+                            }
+                        });
+                    }
+                    return;
+                }
+            }
+
             if (self.isEditableTarget(e.target)) {
                 return;
             }
 
-            var key = String(e.key || '').toLowerCase();
             if (key === 'c' || key === 'x') {
                 var selectionContext = self.getClipboardSelectionContext();
                 if (!selectionContext || !selectionContext.items.length) {

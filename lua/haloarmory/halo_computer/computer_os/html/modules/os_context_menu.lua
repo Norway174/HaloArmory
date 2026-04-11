@@ -597,7 +597,7 @@ window.osContextMenuManager = {
             var originalValue = input.value;
             var normalizedValue = window.osFilenameRules
                 ? window.osFilenameRules.normalizeEditableBaseName(originalValue)
-                : originalValue.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z_.-]/g, '').replace(/^\.+/, '').replace(/_+/g, '_');
+                : originalValue.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_.-]/g, '').replace(/^\.+/, '').replace(/_+/g, '_');
 
             if (normalizedValue !== originalValue) {
                 input.value = normalizedValue;
@@ -643,11 +643,17 @@ window.osContextMenuManager = {
             input.focus();
             input.select();
         }, 10);
-        
+
+        var cancelRename = function() {
+            cleanup();
+            isFinishing = false;
+        };
+
         // Finish rename function
-        var finishRename = function() {
+        var finishRename = function(options) {
             if (isFinishing) return;
             isFinishing = true;
+            options = options || {};
             
             // Clear any pending timeouts immediately
             if (blurTimeout) {
@@ -671,6 +677,10 @@ window.osContextMenuManager = {
                 var newName = validation.normalizedValue;
 
                 if (!validation.isValid || isDuplicate) {
+                    if (options.cancelOnInvalid) {
+                        cancelRename();
+                        return;
+                    }
                     isFinishing = false;
                     window.osCleanup.setTimeout('rename-refocus', function() {
                         input.focus();
@@ -777,7 +787,7 @@ window.osContextMenuManager = {
                 clickOutsideHandler = null;
                 
                 // Finish rename - this will set isFinishing flag
-                finishRename();
+                finishRename({ cancelOnInvalid: true });
             }
         };
         
@@ -804,7 +814,7 @@ window.osContextMenuManager = {
                         if (clickOutsideHandler) {
                             document.removeEventListener('mousedown', clickOutsideHandler, true);
                         }
-                        finishRename();
+                        finishRename({ cancelOnInvalid: true });
                     }
                 }, 150);
             }
@@ -874,7 +884,7 @@ window.osContextMenuManager = {
             .trim()
             .toLowerCase()
             .replace(/\s+/g, '_')
-            .replace(/[^a-z_.-]/g, '')
+            .replace(/[^a-z0-9_.-]/g, '')
             .replace(/^\.+/, '')
             .replace(/^_+/, '')
             .replace(/_+$/, '')

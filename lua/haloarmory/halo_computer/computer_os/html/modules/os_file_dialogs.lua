@@ -312,7 +312,7 @@ window.osFileDialogs = {
         } else {
             baseName = String(baseName || '').toLowerCase();
             baseName = baseName.replace(/\s+/g, '_');
-            baseName = baseName.replace(/[^a-z_.-]/g, '');
+            baseName = baseName.replace(/[^a-z0-9_.-]/g, '');
             baseName = baseName.replace(/^\.+/, '');
             baseName = baseName.replace(/^_+/, '').replace(/_+$/, '');
             baseName = baseName.replace(/_+/g, '_');

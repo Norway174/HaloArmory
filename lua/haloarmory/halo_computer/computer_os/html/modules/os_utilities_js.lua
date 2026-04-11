@@ -263,6 +263,62 @@ function debounce(func, wait) {
     };
 }
 
+function copyTextToClipboard(text, callback) {
+    var normalized = String(text || '');
+    if (!normalized) {
+        if (callback) {
+            callback(false);
+        }
+        return;
+    }
+
+    var finish = function(success) {
+        if (callback) {
+            callback(!!success);
+        }
+    };
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(normalized).then(function() {
+            finish(true);
+        }).catch(function() {
+            copyTextToClipboardFallback(normalized, finish);
+        });
+        return;
+    }
+
+    copyTextToClipboardFallback(normalized, finish);
+}
+
+function copyTextToClipboardFallback(text, callback) {
+    var helper = document.createElement('textarea');
+    helper.value = text;
+    helper.setAttribute('readonly', 'readonly');
+    helper.style.position = 'fixed';
+    helper.style.left = '-9999px';
+    helper.style.top = '0';
+    helper.style.opacity = '0';
+    document.body.appendChild(helper);
+
+    helper.focus();
+    helper.select();
+
+    var success = false;
+    try {
+        success = document.execCommand && document.execCommand('copy');
+    } catch (error) {
+        success = false;
+    }
+
+    if (helper.parentNode) {
+        helper.parentNode.removeChild(helper);
+    }
+
+    if (callback) {
+        callback(!!success);
+    }
+}
+
 // Export for window scope
 window.normalizePath = normalizePath;
 window.normalizePathForFilesystem = normalizePathForFilesystem;
@@ -275,6 +331,7 @@ window.isInTrashFolder = isInTrashFolder;
 window.isRestrictedSystemPath = isRestrictedSystemPath;
 window.isEditableFilesystemPath = isEditableFilesystemPath;
 window.isSelfDrop = isSelfDrop;
+window.copyTextToClipboard = copyTextToClipboard;
 window.escapeHtml = escapeHtml;
 window.debounce = debounce;
 
@@ -290,7 +347,7 @@ window.osFilenameRules = {
         value = value.toLowerCase();
         value = value.replace(/\s+/g, '_');
         value = value.replace(/_+/g, '_');
-        value = value.replace(/[^a-z_.-]/g, '');
+        value = value.replace(/[^a-z0-9_.-]/g, '');
         value = value.replace(/^\.+/, '');
         return value;
     },
@@ -320,7 +377,7 @@ window.osFilenameRules = {
                 isValid: false,
                 editableValue: editableValue,
                 normalizedValue: normalizedValue,
-                message: 'Use letters a-z. Spaces become underscores. "-" and "." are allowed.'
+                message: 'Use letters a-z and numbers 0-9. Spaces become underscores. "-" and "." are allowed.'
             };
         }
 

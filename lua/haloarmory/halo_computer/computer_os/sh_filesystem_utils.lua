@@ -154,8 +154,8 @@ function UTILS.SanitizeFilename(name, fileType)
     -- Replace spaces with underscores
     name = string.gsub(name, "%s+", "_")
 
-    -- Allow Latin letters, underscores, hyphens, and periods
-    name = string.gsub(name, "[^a-z_%.%-]", "")
+    -- Allow Latin letters, digits, underscores, hyphens, and periods
+    name = string.gsub(name, "[^a-z0-9_%.%-]", "")
 
     -- Special files/folders reserve a leading period
     name = string.gsub(name, "^%.+", "")

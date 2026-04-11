@@ -2731,6 +2731,7 @@ var emailApp = {
                     '<div class="email-detail-actions">' +
                         '<button class="email-toolbar-btn email-reply-btn">Reply</button>' +
                         '<button class="email-toolbar-btn email-forward-btn">Forward</button>' +
+                        '<button class="email-toolbar-btn email-save-email-btn">Save</button>' +
                         '<button class="email-toolbar-btn email-delete-btn">Delete</button>' +
                     '</div>' +
                 '</div>' +
@@ -3731,6 +3732,13 @@ var emailApp = {
             }.bind(this));
         }
 
+        var saveEmailBtn = root.querySelector('.email-save-email-btn');
+        if (saveEmailBtn) {
+            saveEmailBtn.addEventListener('click', function() {
+                this.saveCurrentEmailAs(windowId);
+            }.bind(this));
+        }
+
         var deleteBtn = root.querySelector('.email-delete-btn');
         if (deleteBtn) {
             deleteBtn.addEventListener('click', function() {
@@ -3773,6 +3781,96 @@ var emailApp = {
 
     sanitizePathToken: function(value) {
         return String(value || 'item').toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+    },
+
+    buildEmailExportFileName: function(message) {
+        var subjectToken = this.sanitizePathToken((message && message.subject) || 'email');
+        subjectToken = String(subjectToken || 'email').replace(/\.+/g, '.').replace(/^_+|_+$/g, '');
+        if (!subjectToken) {
+            subjectToken = 'email';
+        }
+
+        var timestamp = '';
+        if (message && message.sentAt) {
+            try {
+                timestamp = new Date(message.sentAt * 1000).toISOString().replace(/[:]/g, '-').replace(/\.\d+z$/i, 'z');
+            } catch (error) {
+                timestamp = '';
+            }
+        }
+
+        return (timestamp ? (timestamp + '_') : '') + subjectToken;
+    },
+
+    formatEmailAsText: function(message) {
+        if (!message) {
+            return '';
+        }
+
+        var lines = [];
+        var recipients = Array.isArray(message.recipients) ? message.recipients : [];
+        var attachments = Array.isArray(message.attachments) ? message.attachments : [];
+        var sentAt = this.formatTimestamp(message.sentAt);
+
+        lines.push('Subject: ' + String(message.subject || 'No Subject'));
+        lines.push('From: ' + this.formatContact(message.sender || {}));
+        lines.push('To: ' + (recipients.length ? recipients.map(function(recipient) {
+            return emailApp.formatContact(recipient);
+        }).join(', ') : 'Unknown'));
+        lines.push('Date: ' + sentAt);
+        lines.push('Attachments: ' + attachments.length);
+
+        if (attachments.length) {
+            attachments.forEach(function(attachment, index) {
+                var attachmentName = attachment.displayName || attachment.filename || ('Attachment ' + (index + 1));
+                var attachmentType = attachment.filetype ? (' (' + attachment.filetype + ')') : '';
+                lines.push(' - ' + attachmentName + attachmentType);
+            });
+        }
+
+        lines.push('');
+        lines.push('Body:');
+        lines.push(String(message.bodyMarkdown || ''));
+
+        return lines.join('\n');
+    },
+
+    saveCurrentEmailAs: function(windowId) {
+        var instance = this.getInstance(windowId);
+        if (!instance || !instance.detailMessage) {
+            return;
+        }
+
+        if (!window.osFileDialogs || !window.osFileDialogs.showSaveAs || !window.filesystem) {
+            if (window.osErrorHandler) {
+                window.osErrorHandler.showNotification('Save dialog is not available.', 'error', 2400);
+            }
+            return;
+        }
+
+        var message = instance.detailMessage;
+        var exportContents = this.formatEmailAsText(message);
+        window.osFileDialogs.showSaveAs({
+            title: 'Save Email As...',
+            initialPath: 'C:/desktop/',
+            defaultName: this.buildEmailExportFileName(message),
+            defaultExtension: '.txt',
+            allowedExtensions: ['.txt'],
+            confirmLabel: 'Save',
+            onSave: function(filePath) {
+                window.filesystem.writeFile(filePath, exportContents, function(success) {
+                    if (!window.osErrorHandler) {
+                        return;
+                    }
+
+                    if (success) {
+                        window.osErrorHandler.showNotification('Email saved.', 'success', 2200);
+                    } else {
+                        window.osErrorHandler.showNotification('Failed to save email.', 'error', 2400);
+                    }
+                });
+            }
+        });
     },
 
     stripExtension: function(fileName) {
@@ -5084,12 +5182,16 @@ function EMAIL.GetCSS()
     color: var(--color-text-primary, #fff);
     padding: 14px;
     line-height: 1.55;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .email-detail-recipients {
     padding-top: 14px;
     color: var(--color-text-secondary, #9a9a9a);
     font-size: 12px;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .email-detail-body {

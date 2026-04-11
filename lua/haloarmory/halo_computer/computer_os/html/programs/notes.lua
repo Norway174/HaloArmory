@@ -1243,6 +1243,8 @@ function NOTES.GetCSS()
     color: var(--color-text-primary, #d4d4d4);
     overflow-y: auto;
     display: none;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .notes-preview h1, .notes-preview h2, .notes-preview h3 {
