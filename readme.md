@@ -56,7 +56,7 @@ These aren't strictly required. But they have special compatibility if included.
 * [[Simfphys] Halo](https://steamcommunity.com/sharedfiles/filedetails/?id=2879250902)
 
 ## Discord
-I have set up a development Discord server here: https://discord.gg/aBapcEjaDa  
+I have set up a development Discord server here: https://discord.gg/5jpZ9FGprd  
 Feel free to join if you need help, or want to chat!
 
 ## Support
