@@ -57,18 +57,30 @@ end
 
 function HALOARMORY.GetOwnScriptPath()
     local info = debug.getinfo(2)
-    local src = info.source -- e.g., "@addons/haloarmory/lua/haloarmory/halo_computer/cl_computer_interface.lua"
-    if src:sub(1,1) == "@" then src = src:sub(2) end
+    local src = info and info.source or ""
+
+    -- Examples:
+    -- @addons/haloarmory/lua/haloarmory/halo_computer/computer_os/cl_computer_interface.lua
+    -- @lua/haloarmory/halo_computer/computer_os/cl_computer_interface.lua
+    if src:sub(1, 1) == "@" then
+        src = src:sub(2)
+    end
+
+    src = string.gsub(src, "\\", "/")
+
+    local luaStart = string.find(src, "lua/", 1, true)
+    if luaStart then
+        src = string.sub(src, luaStart + 4)
+    end
 
     local parts = string.Explode("/", src)
-    -- Remove last entry (filename)
     table.remove(parts, #parts)
-    -- Remove the first three entries
-    for i = 1,3 do
-        table.remove(parts, 1)
-    end
-    -- Merge the rest into path
+
     local luaDir = table.concat(parts, "/")
+    if luaDir == "" then
+        return ""
+    end
+
     return luaDir .. "/"
 end
 
