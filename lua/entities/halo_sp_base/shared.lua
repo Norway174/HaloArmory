@@ -57,6 +57,10 @@ else
         local ent = net.ReadEntity()
         local network = net.ReadTable()
 
+        if not IsValid( ent ) and not ent.NetworkVar then
+            print( "HaloArmory Logistics Client recieved network update, but entity was invalid or no NetworkVar found. Ent: ", ent, " Network: ", network )
+            return
+        end
         ent:NetworkVar( "String", 0, "NetworkID", { KeyName = "NetworkID",	Edit = { type = "Combo", order = 1, text = "Select network...", values = network } } )
     end )
 end
